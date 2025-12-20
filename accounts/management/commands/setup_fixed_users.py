@@ -21,14 +21,15 @@ class Command(BaseCommand):
                 'is_superuser': True,
             }
         )
-        if created:
-            admin.set_password('admin123')
-            admin.save()
-            self.stdout.write(self.style.SUCCESS(
-                '✅ Created admin user - username: admin, password: admin123'
-            ))
-        else:
-            self.stdout.write(self.style.WARNING('Admin user already exists'))
+        # Always enforce demo credentials/flags (safe for demos; change/remove for real prod)
+        admin.role = 'ADMIN'
+        admin.is_staff = True
+        admin.is_superuser = True
+        admin.set_password('admin123')
+        admin.save()
+        self.stdout.write(self.style.SUCCESS(
+            '✅ Admin ready - username: admin, password: admin123'
+        ))
         
         # Create Teacher
         teacher, created = User.objects.get_or_create(
@@ -41,14 +42,14 @@ class Command(BaseCommand):
                 'is_staff': True,
             }
         )
-        if created:
-            teacher.set_password('teacher123')
-            teacher.save()
-            self.stdout.write(self.style.SUCCESS(
-                '✅ Created teacher user - username: teacher, password: teacher123'
-            ))
-        else:
-            self.stdout.write(self.style.WARNING('Teacher user already exists'))
+        teacher.role = 'TEACHER'
+        teacher.is_staff = True
+        teacher.is_superuser = False
+        teacher.set_password('teacher123')
+        teacher.save()
+        self.stdout.write(self.style.SUCCESS(
+            '✅ Teacher ready - username: teacher, password: teacher123'
+        ))
 
         # Create Student
         student, created = User.objects.get_or_create(
@@ -62,14 +63,14 @@ class Command(BaseCommand):
                 'is_superuser': False,
             }
         )
-        if created:
-            student.set_password('student123')
-            student.save()
-            self.stdout.write(self.style.SUCCESS(
-                '✅ Created student user - username: student, password: student123'
-            ))
-        else:
-            self.stdout.write(self.style.WARNING('Student user already exists'))
+        student.role = 'STUDENT'
+        student.is_staff = False
+        student.is_superuser = False
+        student.set_password('student123')
+        student.save()
+        self.stdout.write(self.style.SUCCESS(
+            '✅ Student ready - username: student, password: student123'
+        ))
         
         # Create initial badges
         badges_data = [
