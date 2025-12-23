@@ -29,6 +29,30 @@ const resolveMediaUrl = (maybeUrl) => {
   return `${BACKEND_ORIGIN}/${maybeUrl}`;
 };
 
+const LSK = {
+  ATTEMPT_UI: (attemptId) => `mentara_attempt_${attemptId}_ui`,
+};
+
+const readAttemptUi = (attemptId) => {
+  try {
+    const raw = localStorage.getItem(LSK.ATTEMPT_UI(attemptId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAttemptUi = (attemptId, data) => {
+  try {
+    localStorage.setItem(LSK.ATTEMPT_UI(attemptId), JSON.stringify({
+      ...data,
+      _savedAt: Date.now(),
+    }));
+  } catch {
+    // ignore quota / privacy mode
+  }
+};
+
 const TestTaking = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -47,6 +71,19 @@ const TestTaking = () => {
   useEffect(() => {
     loadTest();
   }, [examId]);
+
+  // Persist UI progress so refresh resumes where the student left off.
+  useEffect(() => {
+    if (!attemptId) return;
+    if (!questions || questions.length === 0) return;
+    const currentQ = questions[currentQuestionIndex];
+    const currentQuestionId = currentQ?.id ?? null;
+    writeAttemptUi(attemptId, {
+      currentQuestionId,
+      answers,
+      flagged: Array.from(flagged || []),
+    });
+  }, [attemptId, questions, currentQuestionIndex, answers, flagged]);
 
   useEffect(() => {
     if (timeRemaining > 0) {
@@ -109,40 +146,55 @@ const TestTaking = () => {
       const secondsRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
       setTimeRemaining(secondsRemaining);
 
-      // Restore saved answers/flags (if any)
+      // Restore local UI progress first (so even unsaved selections survive refresh)
+      const localUi = readAttemptUi(startedAttemptId);
+      const localAnswers = (localUi && typeof localUi.answers === 'object' && localUi.answers) ? localUi.answers : {};
+      const localFlagged = Array.isArray(localUi?.flagged) ? new Set(localUi.flagged) : new Set();
+
+      // Restore saved answers/flags from server (authoritative across devices)
+      let serverAnswers = {};
+      let serverFlagged = new Set();
       try {
         const resumeRes = await api.get(`attempts/${startedAttemptId}/resume/`);
-        const restoredAnswers = {};
         const rawAnswers = resumeRes.data?.answers || {};
         for (const [qidRaw, payload] of Object.entries(rawAnswers)) {
           const qid = Number(qidRaw);
           if (!Number.isFinite(qid)) continue;
           if (payload && typeof payload === 'object') {
             if (Array.isArray(payload.answers) && payload.answers.length > 0) {
-              restoredAnswers[qid] = payload.answers[0];
+              serverAnswers[qid] = payload.answers[0];
             } else if (Object.prototype.hasOwnProperty.call(payload, 'answer')) {
-              restoredAnswers[qid] = payload.answer;
+              serverAnswers[qid] = payload.answer;
             } else {
-              // fallback: keep payload as-is
-              restoredAnswers[qid] = payload;
+              serverAnswers[qid] = payload;
             }
           } else {
-            restoredAnswers[qid] = payload;
+            serverAnswers[qid] = payload;
           }
         }
-        setAnswers(restoredAnswers);
 
         const flaggedMap = resumeRes.data?.flagged || {};
-        const restoredFlagged = new Set(
+        serverFlagged = new Set(
           Object.entries(flaggedMap)
             .filter(([, v]) => Boolean(v))
             .map(([k]) => Number(k))
             .filter((n) => Number.isFinite(n))
         );
-        setFlagged(restoredFlagged);
       } catch (resumeErr) {
-        // Best-effort only; do not block test load.
         console.warn('Resume attempt failed:', resumeErr);
+      }
+
+      // Merge: prefer local for answers (covers not-yet-saved selections), union flags.
+      const mergedAnswers = { ...serverAnswers, ...localAnswers };
+      const mergedFlagged = new Set([...serverFlagged, ...localFlagged]);
+      setAnswers(mergedAnswers);
+      setFlagged(mergedFlagged);
+
+      // Restore navigation position (where student left off)
+      const desiredQid = localUi?.currentQuestionId;
+      if (desiredQid && Array.isArray(mappedQuestions) && mappedQuestions.length > 0) {
+        const idx = mappedQuestions.findIndex((q) => q && q.id === desiredQid);
+        if (idx >= 0) setCurrentQuestionIndex(idx);
       }
       
       // Get exam details
