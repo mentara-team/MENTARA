@@ -5,6 +5,7 @@ import { Award, BookOpen, Clock, Play, Target, TrendingUp, Trophy, Zap } from 'l
 
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import AppShell from '../components/layout/AppShell';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -160,41 +161,36 @@ const Dashboard = () => {
   }, [trendPoints]);
 
   return (
-    <div className="min-h-screen bg-bg">
-      <header className="glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-bg" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gradient">Mentara</h1>
-              <p className="text-sm text-text-secondary">IB Exam Preparation</p>
-            </div>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-2 bg-surface/40 border border-elevated/50 rounded-2xl p-1">
-            <Link to="/dashboard" className="px-4 py-2 rounded-xl text-sm font-semibold bg-elevated text-text">Dashboard</Link>
-            <Link to="/exams" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Tests</Link>
-            <Link to="/leaderboard" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Leaderboard</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button className="btn-secondary text-sm hidden sm:inline-flex" onClick={loadDashboardData} disabled={loading}>
-              {loading ? 'Loading…' : 'Refresh'}
-            </button>
-            <div className="hidden sm:flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
-                <p className="text-xs text-text-secondary">{user?.email}</p>
-              </div>
-              <button onClick={logout} className="btn-secondary text-sm">Logout</button>
-            </div>
-          </div>
+    <AppShell
+      brandIcon={(
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <BookOpen className="w-6 h-6 text-bg" />
         </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      )}
+      brandTitle="Mentara"
+      brandSubtitle="IB Exam Preparation"
+      nav={(
+        <nav className="hidden md:flex items-center gap-2 bg-surface/40 border border-elevated/50 rounded-2xl p-1">
+          <Link to="/dashboard" className="px-4 py-2 rounded-xl text-sm font-semibold bg-elevated text-text">Dashboard</Link>
+          <Link to="/exams" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Tests</Link>
+          <Link to="/leaderboard" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Leaderboard</Link>
+        </nav>
+      )}
+      right={(
+        <>
+          <button className="btn-secondary text-sm hidden sm:inline-flex" onClick={loadDashboardData} disabled={loading}>
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
+              <p className="text-xs text-text-secondary">{user?.email}</p>
+            </div>
+            <button onClick={logout} className="btn-secondary text-sm">Logout</button>
+          </div>
+        </>
+      )}
+    >
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -396,8 +392,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </AppShell>
   );
 };
 

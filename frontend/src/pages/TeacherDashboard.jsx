@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, ClipboardCheck, GraduationCap, Users, FileText, Sparkles, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AppShell from '../components/layout/AppShell';
 
 const BASE_API = (import.meta.env.VITE_BASE_API || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
 const getToken = () => localStorage.getItem('access_token');
@@ -147,39 +148,33 @@ function TeacherDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-bg">
-      <header className="glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-bg" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-gradient">Mentara</div>
-              <div className="text-sm text-text-secondary">Teaching • Grading • Progress</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link to="/teacher/exams" className="btn-secondary text-sm">
-              <FileText className="w-4 h-4 inline-block mr-2" />
-              Manage Exams
-            </Link>
-
-            <div className="hidden sm:flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
-                <p className="text-xs text-text-secondary">{user?.email}</p>
-              </div>
-              <button onClick={handleLogout} className="btn-secondary text-sm">
-                Logout
-              </button>
-            </div>
-          </div>
+    <AppShell
+      brandIcon={(
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <GraduationCap className="w-6 h-6 text-bg" />
         </div>
-      </header>
+      )}
+      brandTitle="Mentara"
+      brandSubtitle="Teaching • Grading • Progress"
+      right={(
+        <>
+          <Link to="/teacher/exams" className="btn-secondary text-sm">
+            <FileText className="w-4 h-4 inline-block mr-2" />
+            Manage Exams
+          </Link>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
+              <p className="text-xs text-text-secondary">{user?.email}</p>
+            </div>
+            <button onClick={handleLogout} className="btn-secondary text-sm">
+              Logout
+            </button>
+          </div>
+        </>
+      )}
+    >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
           <div className="lg:col-span-2">
             <h1 className="text-3xl font-bold text-text mb-2">Teacher Dashboard</h1>
@@ -382,8 +377,7 @@ function TeacherDashboard() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </AppShell>
   );
 }
 
