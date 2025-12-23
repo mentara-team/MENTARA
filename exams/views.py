@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response as DRFResponse
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db.models import Avg, Count, Max, Q
 from django.utils import timezone
 import random
 from datetime import timedelta
@@ -81,27 +82,66 @@ class ResponseViewSet(viewsets.ModelViewSet):
 @permission_classes([permissions.IsAuthenticated])
 def start_exam(request, exam_id):
     exam = get_object_or_404(Exam, pk=exam_id, is_active=True)
-    with transaction.atomic():
-        attempt = Attempt.objects.create(user=request.user, exam=exam, started_at=timezone.now())
-        eqs = list(ExamQuestion.objects.filter(exam=exam).select_related('question').order_by('order'))
-        if not eqs:
-            # fallback: attach questions from topic
-            qlist = list(Question.objects.filter(topic=exam.topic, is_active=True))
-            eqs = [ExamQuestion(exam=exam, question=q, order=i) for i, q in enumerate(qlist)]
-        order = list(range(len(eqs)))
-        if exam.shuffle_questions:
-            random.shuffle(order)
-        ordered = [eqs[i] for i in order]
+    now = timezone.now()
 
-    # expires_at derived from duration_seconds
-    expires_at = (attempt.started_at + timedelta(seconds=exam.duration_seconds)).isoformat()
+    def _pick_question_ids_for_exam() -> list[int]:
+        eqs = list(ExamQuestion.objects.filter(exam=exam).select_related('question').order_by('order'))
+        if eqs:
+            ids = [int(eq.question_id) for eq in eqs]
+        else:
+            ids = list(Question.objects.filter(topic=exam.topic, is_active=True).values_list('id', flat=True))
+            ids = [int(x) for x in ids]
+        if exam.shuffle_questions:
+            random.shuffle(ids)
+        return ids
+
+    with transaction.atomic():
+        # If there's an active attempt, resume it instead of creating a new one.
+        attempt = (
+            Attempt.objects.select_for_update()
+            .filter(user=request.user, exam=exam, status='inprogress')
+            .order_by('-started_at')
+            .first()
+        )
+
+        if attempt is None:
+            attempt = Attempt.objects.create(user=request.user, exam=exam, started_at=now)
+
+        expires_at_dt = attempt.started_at + timedelta(seconds=exam.duration_seconds)
+        expires_at = expires_at_dt.isoformat()
+
+        # If time has already elapsed, mark timed out and return (do not restart timer).
+        if now >= expires_at_dt:
+            if attempt.status == 'inprogress':
+                attempt.status = 'timedout'
+                attempt.finished_at = expires_at_dt
+                attempt.duration_seconds = int(exam.duration_seconds)
+                attempt.save(update_fields=['status', 'finished_at', 'duration_seconds'])
+            return DRFResponse(
+                {'attempt_id': attempt.id, 'expires_at': expires_at, 'detail': 'Attempt timed out.'},
+                status=status.HTTP_410_GONE,
+            )
+
+        meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
+        question_order = meta.get('question_order')
+        if not isinstance(question_order, list) or not question_order:
+            question_order = _pick_question_ids_for_exam()
+            meta['question_order'] = question_order
+            attempt.metadata = meta
+            attempt.save(update_fields=['metadata'])
+
+    # Build questions list in the stored order.
+    qs = Question.objects.filter(id__in=question_order)
+    by_id = {q.id: q for q in qs}
 
     def map_type(t):
         return {'MCQ': 'mcq', 'MULTI': 'multi', 'FIB': 'fib', 'STRUCT': 'structured'}.get(t, 'mcq')
 
     questions = []
-    for eq in ordered:
-        q = eq.question
+    for qid in question_order:
+        q = by_id.get(int(qid))
+        if not q:
+            continue
         # Keep choices as-is if dict, otherwise convert to dict format
         choices = q.choices if isinstance(q.choices, dict) else {}
         if not choices and q.type == 'MCQ':
@@ -118,7 +158,10 @@ def start_exam(request, exam_id):
             'image': request.build_absolute_uri(q.image.url) if q.image else None,
         })
 
-    return DRFResponse({'attempt_id': attempt.id, 'expires_at': expires_at, 'questions': questions}, status=status.HTTP_200_OK)
+    return DRFResponse(
+        {'attempt_id': attempt.id, 'expires_at': expires_at, 'questions': questions},
+        status=status.HTTP_200_OK,
+    )
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -351,8 +394,67 @@ def bulk_create_questions(request):
 @permission_classes([permissions.IsAuthenticated])
 def my_attempts(request):
     qs = Attempt.objects.filter(user=request.user).select_related('exam').order_by('-created_at')
-    data = [{'id': a.id, 'exam_title': a.exam.title, 'status': a.status, 'score': a.total_score, 'started_at': a.started_at.isoformat(), 'finished_at': a.finished_at.isoformat() if a.finished_at else None} for a in qs]
+    data = [
+        {
+            'id': a.id,
+            'exam_id': a.exam_id,
+            'exam_title': a.exam.title,
+            'status': a.status,
+            # Keep legacy key for compatibility
+            'score': float(a.total_score or 0),
+            'percentage': float(a.percentage or 0),
+            'started_at': a.started_at.isoformat(),
+            'finished_at': a.finished_at.isoformat() if a.finished_at else None,
+            'duration_seconds': int(a.duration_seconds or 0),
+        }
+        for a in qs
+    ]
     return DRFResponse({'attempts': data}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def analytics_exams_summary(request):
+    """Teacher/Admin: summary of attempts by exam (how many attempts, who attempted, last attempted, avg score)."""
+    if not _is_teacher_or_admin(request.user):
+        return DRFResponse({'detail': 'Only teachers/admins can view exam analytics.'}, status=status.HTTP_403_FORBIDDEN)
+
+    exam_id = request.query_params.get('exam_id')
+    qs = Attempt.objects.select_related('exam')
+    if exam_id:
+        qs = qs.filter(exam_id=exam_id)
+
+    grouped = (
+        qs.values('exam_id', 'exam__title')
+        .annotate(
+            attempts_total=Count('id'),
+            attempts_submitted=Count('id', filter=Q(status='submitted')),
+            attempts_inprogress=Count('id', filter=Q(status='inprogress')),
+            attempts_timedout=Count('id', filter=Q(status='timedout')),
+            unique_students=Count('user_id', distinct=True),
+            last_attempt_at=Max('started_at'),
+            avg_percentage=Avg('percentage', filter=Q(status__in=['submitted', 'timedout'])),
+        )
+        .order_by('-last_attempt_at')
+    )
+
+    data = []
+    for row in grouped:
+        data.append(
+            {
+                'exam_id': row['exam_id'],
+                'exam_title': row['exam__title'],
+                'attempts_total': int(row['attempts_total'] or 0),
+                'attempts_submitted': int(row['attempts_submitted'] or 0),
+                'attempts_inprogress': int(row['attempts_inprogress'] or 0),
+                'attempts_timedout': int(row['attempts_timedout'] or 0),
+                'unique_students': int(row['unique_students'] or 0),
+                'last_attempt_at': row['last_attempt_at'].isoformat() if row['last_attempt_at'] else None,
+                'avg_percentage': round(float(row['avg_percentage'] or 0.0), 2),
+            }
+        )
+
+    return DRFResponse({'exams': data}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])

@@ -1,35 +1,43 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Award, BookOpen, Clock, Play, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
+
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { 
-  BookOpen, Trophy, Clock, TrendingUp, Calendar, 
-  Target, Award, Zap, ChevronRight, Play 
-} from 'lucide-react';
-import { motion } from 'framer-motion';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     upcomingExams: [],
     recentAttempts: [],
-    analytics: null,
-    topicProgress: []
+    topicProgress: [],
+    leaderboard: [],
   });
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const examsRes = await api.get('exams/');
-      const examsArray = Array.isArray(examsRes.data) ? examsRes.data : [];
+      const [examsRes, attemptsRes, topicsRes, leaderboardRes] = await Promise.all([
+        api.get('exams/'),
+        api.get('users/me/attempts/'),
+        api.get('analytics/user/me/topics/'),
+        api.get('leaderboard/?period=weekly'),
+      ]);
+
+      const examsArray = Array.isArray(examsRes.data) ? examsRes.data : (examsRes.data?.results || []);
+      const attemptsArray = attemptsRes.data?.attempts || [];
+      const topicsArray = topicsRes.data?.topics || [];
+      const leaders = leaderboardRes.data?.leaders || [];
 
       setDashboardData({
         upcomingExams: examsArray,
-        recentAttempts: [],
-        analytics: { total_attempts: 0, average_score: 0, current_streak: 0 },
-        topicProgress: []
+        recentAttempts: attemptsArray,
+        topicProgress: topicsArray,
+        leaderboard: leaders,
       });
     } catch (error) {
       console.error('Failed to load dashboard:', error);
@@ -37,6 +45,11 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleStartTest = (examId) => {
     navigate(`/test/${examId}`);
@@ -46,40 +59,108 @@ const Dashboard = () => {
     navigate(`/results/${attemptId}`);
   };
 
-  const stats = [
-    {
-      icon: Trophy,
-      label: 'Tests Completed',
-      value: dashboardData.analytics?.total_attempts || 0,
-      color: 'from-primary to-accent',
-      bgColor: 'bg-primary/10'
-    },
-    {
-      icon: Target,
-      label: 'Average Score',
-      value: `${dashboardData.analytics?.average_score || 0}%`,
-      color: 'from-accent to-primary',
-      bgColor: 'bg-accent/10'
-    },
-    {
-      icon: Calendar,
-      label: 'Available Tests',
-      value: dashboardData.upcomingExams.length,
-      color: 'from-primary to-accent',
-      bgColor: 'bg-primary/10'
-    },
-    {
-      icon: Zap,
-      label: 'Current Streak',
-      value: dashboardData.analytics?.current_streak || 0,
-      color: 'from-warning to-danger',
-      bgColor: 'bg-warning/10'
+  const submittedAttempts = useMemo(
+    () => (dashboardData.recentAttempts || []).filter((a) => a && (a.status === 'submitted' || a.status === 'timedout')),
+    [dashboardData.recentAttempts]
+  );
+
+  const avgScore = useMemo(() => {
+    const scores = submittedAttempts.map((a) => Number(a.percentage ?? 0)).filter((n) => Number.isFinite(n));
+    if (!scores.length) return 0;
+    const sum = scores.reduce((acc, v) => acc + v, 0);
+    return Math.round((sum / scores.length) * 10) / 10;
+  }, [submittedAttempts]);
+
+  const streak = useMemo(() => {
+    const dates = submittedAttempts
+      .map((a) => (a.started_at ? new Date(a.started_at).toDateString() : null))
+      .filter(Boolean);
+    if (!dates.length) return 0;
+
+    const uniqueDates = [...new Set(dates)].sort((a, b) => new Date(b) - new Date(a));
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return 0;
+
+    let count = 1;
+    for (let i = 1; i < uniqueDates.length; i++) {
+      const prev = new Date(uniqueDates[i - 1]);
+      const curr = new Date(uniqueDates[i]);
+      const diffDays = Math.floor((prev - curr) / 86400000);
+      if (diffDays === 1) count += 1;
+      else break;
     }
-  ];
+    return count;
+  }, [submittedAttempts]);
+
+  const myLeaderboardRank = useMemo(() => {
+    const username = user?.username;
+    if (!username) return null;
+    const found = (dashboardData.leaderboard || []).find((l) => l && l.username === username);
+    return found?.rank ?? null;
+  }, [dashboardData.leaderboard, user?.username]);
+
+  const topStats = useMemo(
+    () => [
+      { icon: Trophy, label: 'Tests Completed', value: submittedAttempts.length },
+      { icon: Target, label: 'Average Score', value: `${avgScore}%` },
+      { icon: Zap, label: 'Day Streak', value: streak },
+      { icon: Award, label: 'Weekly Rank', value: myLeaderboardRank ? `#${myLeaderboardRank}` : '—' },
+    ],
+    [avgScore, myLeaderboardRank, streak, submittedAttempts.length]
+  );
+
+  const upcoming = useMemo(() => (dashboardData.upcomingExams || []).slice(0, 3), [dashboardData.upcomingExams]);
+  const recentTwo = useMemo(() => submittedAttempts.slice(0, 2), [submittedAttempts]);
+  const topTopics = useMemo(() => (dashboardData.topicProgress || []).slice(0, 4), [dashboardData.topicProgress]);
+
+  const trendPoints = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d;
+    });
+    const buckets = days.map((d) => ({ key: d.toDateString(), values: [] }));
+
+    for (const attempt of submittedAttempts) {
+      if (!attempt?.started_at) continue;
+      const key = new Date(attempt.started_at).toDateString();
+      const idx = buckets.findIndex((b) => b.key === key);
+      if (idx >= 0) buckets[idx].values.push(Number(attempt.percentage ?? 0));
+    }
+
+    return buckets.map((b) => {
+      if (!b.values.length) return 0;
+      const sum = b.values.reduce((acc, v) => acc + v, 0);
+      return Math.round((sum / b.values.length) * 10) / 10;
+    });
+  }, [submittedAttempts]);
+
+  const trendPath = useMemo(() => {
+    const w = 520;
+    const h = 160;
+    const pad = 12;
+    const max = 100;
+    const min = 0;
+    const pts = trendPoints.length ? trendPoints : [0, 0, 0, 0, 0, 0, 0];
+    const stepX = (w - pad * 2) / (pts.length - 1);
+
+    const y = (v) => {
+      const clamped = Math.max(min, Math.min(max, v));
+      const t = (clamped - min) / (max - min);
+      return h - pad - t * (h - pad * 2);
+    };
+
+    return pts
+      .map((v, i) => {
+        const x = pad + i * stepX;
+        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y(v).toFixed(2)}`;
+      })
+      .join(' ');
+  }, [trendPoints]);
 
   return (
     <div className="min-h-screen bg-bg">
-      {/* Header */}
       <header className="glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -91,63 +172,56 @@ const Dashboard = () => {
               <p className="text-sm text-text-secondary">IB Exam Preparation</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/leaderboard')}
-              className="btn-ghost text-sm"
-            >
-              <Trophy className="w-4 h-4 inline-block mr-2" />
-              Leaderboard
+
+          <nav className="hidden md:flex items-center gap-2 bg-surface/40 border border-elevated/50 rounded-2xl p-1">
+            <Link to="/dashboard" className="px-4 py-2 rounded-xl text-sm font-semibold bg-elevated text-text">Dashboard</Link>
+            <Link to="/exams" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Tests</Link>
+            <Link to="/leaderboard" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Leaderboard</Link>
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <button className="btn-secondary text-sm hidden sm:inline-flex" onClick={loadDashboardData} disabled={loading}>
+              {loading ? 'Loading…' : 'Refresh'}
             </button>
-            <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
                 <p className="text-xs text-text-secondary">{user?.email}</p>
               </div>
-              <button
-                onClick={logout}
-                className="btn-secondary text-sm"
-              >
-                Logout
-              </button>
+              <button onClick={logout} className="btn-secondary text-sm">Logout</button>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h2 className="text-3xl font-bold text-text mb-2">
-            Welcome back, {user?.first_name}.
-          </h2>
-          <p className="text-text-secondary">
-            Pick a test and continue your preparation.
-          </p>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-4xl font-bold text-text mb-2">Welcome back, {user?.first_name || 'Student'}!</h2>
+              <p className="text-text-secondary">You’re on a {streak}-day streak. Keep it going!</p>
+            </div>
+            <button onClick={() => navigate('/exams')} className="btn-primary">
+              <Play className="w-4 h-4 inline-block mr-2" />
+              Start Test
+            </button>
+          </div>
         </motion.div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
+          {topStats.map((stat, index) => (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="card-elevated hover-lift"
+              className="card-elevated"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center border border-elevated/50">
                   <stat.icon className="w-6 h-6 text-primary" />
                 </div>
-                <div className={`text-2xl font-bold text-gradient bg-gradient-to-r ${stat.color}`}>
-                  {stat.value}
-                </div>
+                <div className="text-2xl font-bold text-text">{stat.value}</div>
               </div>
               <p className="text-sm text-text-secondary">{stat.label}</p>
             </motion.div>
@@ -155,197 +229,171 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Upcoming Exams */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-text flex items-center gap-2">
-                  <Calendar className="w-6 h-6 text-primary" />
-                  Available Tests
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => navigate('/exams')} className="btn-ghost text-sm">
-                    View All
-                  </button>
-                  <button onClick={loadDashboardData} className="btn-secondary text-sm" disabled={loading}>
-                    {loading ? 'Loading…' : 'Refresh'}
-                  </button>
+            <div className="card-elevated">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-text">Performance Trend</h3>
+                <div className="text-xs text-text-secondary">Last 7 days</div>
+              </div>
+              <div className="bg-surface/40 border border-elevated/50 rounded-2xl p-4">
+                <svg viewBox="0 0 520 160" className="w-full h-40 text-primary">
+                  <path d={trendPath} fill="none" stroke="currentColor" strokeWidth="3" strokeOpacity="0.9" />
+                  <path d={trendPath} fill="none" stroke="currentColor" strokeWidth="8" strokeOpacity="0.25" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="card-elevated">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-text">Topic Performance</h3>
+                  <div className="text-xs text-text-secondary">Accuracy</div>
+                </div>
+                <div className="space-y-4">
+                  {topTopics.map((t) => (
+                    <div key={t.topic_id}>
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <div className="font-semibold text-text">{t.topic}</div>
+                        <div className="text-text-secondary">{t.accuracy_pct}%</div>
+                      </div>
+                      <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                          style={{ width: `${Math.max(0, Math.min(100, t.accuracy_pct || 0))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {topTopics.length === 0 && (
+                    <div className="text-sm text-text-secondary">No topic data yet. Take a test to see analytics.</div>
+                  )}
                 </div>
               </div>
 
-              {dashboardData.upcomingExams.length === 0 ? (
-                <div className="col-span-2 text-center py-12">
-                  <p className="text-text-secondary text-lg mb-2">No tests available yet</p>
-                  <p className="text-sm text-text-secondary">
-                    Ask your teacher to publish an exam, then refresh.
-                  </p>
+              <div className="card-elevated">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-text">Upcoming Tests</h3>
+                  <button onClick={() => navigate('/exams')} className="btn-ghost text-sm">View All</button>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {dashboardData.upcomingExams.map((exam, index) => (
-                  <motion.div
-                    key={exam.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + index * 0.05 }}
-                    className="card-elevated group cursor-pointer"
-                    onClick={() => handleStartTest(exam.id)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        exam.level === 'HL' ? 'bg-danger/20 text-danger' : 'bg-primary/20 text-primary'
-                      }`}>
-                        {exam.level}
-                      </div>
-                      <div className="text-xs text-text-secondary">
-                        Paper {exam.paper_number}
-                      </div>
-                    </div>
-
-                    <h4 className="text-lg font-bold text-text mb-2 group-hover:text-gradient transition-colors">
-                      {exam.title}
-                    </h4>
-
-                    <div className="flex items-center gap-4 mb-4 text-sm text-text-secondary">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>
+                <div className="space-y-3">
+                  {upcoming.map((exam) => (
+                    <div
+                      key={exam.id}
+                      className="p-4 rounded-2xl bg-surface/40 border border-elevated/50 hover:border-primary/40 transition-colors"
+                    >
+                      <div className="font-semibold text-text">{exam.title}</div>
+                      <div className="text-xs text-text-secondary mt-1 flex items-center gap-3">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
                           {Number.isFinite(exam.duration)
                             ? `${exam.duration} min`
-                            : (Number.isFinite(exam.duration_seconds) ? `${Math.round(exam.duration_seconds / 60)} min` : '—')}
+                            : `${Math.round((exam.duration_seconds || 0) / 60)} min`}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <BookOpen className="w-3.5 h-3.5" />
+                          {exam.question_count || 0} questions
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="w-4 h-4" />
-                        <span>{exam.question_count || 0} questions</span>
+                      <div className="mt-3">
+                        <button onClick={() => handleStartTest(exam.id)} className="btn-secondary text-sm">Start</button>
                       </div>
                     </div>
-
-                    <button className="btn-primary w-full group-hover:shadow-glow transition-all">
-                      <Play className="w-4 h-4 inline-block mr-2" />
-                      Start Test
-                    </button>
-                  </motion.div>
                   ))}
+                  {upcoming.length === 0 && <div className="text-sm text-text-secondary">No tests available yet.</div>}
                 </div>
-              )}
-            </motion.div>
+              </div>
+            </div>
 
-            {/* Recent Attempts */}
-            {dashboardData.recentAttempts.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <h3 className="text-2xl font-bold text-text mb-6 flex items-center gap-2">
-                  <Clock className="w-6 h-6 text-primary" />
-                  Recent Activity
-                </h3>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="card-elevated">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-text">Recent Activity</h3>
+                </div>
                 <div className="space-y-3">
-                  {dashboardData.recentAttempts.map((attempt) => (
+                  {recentTwo.map((a) => (
                     <div
-                      key={attempt.id}
-                      className="card-elevated flex items-center justify-between cursor-pointer group"
-                      onClick={() => handleViewResults(attempt.id)}
+                      key={a.id}
+                      className="p-4 rounded-2xl bg-surface/40 border border-elevated/50 hover:border-primary/40 transition-colors cursor-pointer"
+                      onClick={() => handleViewResults(a.id)}
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-xl ${
-                          attempt.score >= 70 ? 'bg-accent/20' : 'bg-warning/20'
-                        } flex items-center justify-center`}>
-                          <div className="text-2xl font-bold text-gradient">
-                            {attempt.score}%
-                          </div>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-text group-hover:text-primary transition-colors">
-                            {attempt.exam_title}
-                          </h4>
-                          <p className="text-sm text-text-secondary">
-                            Completed {new Date(attempt.completed_at).toLocaleDateString()}
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-text">{a.exam_title}</div>
+                        <div className="text-sm font-semibold text-text">{Math.round(Number(a.percentage ?? 0))}%</div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-text-secondary group-hover:text-primary transition-colors" />
+                      <div className="text-xs text-text-secondary mt-1">
+                        {a.started_at ? new Date(a.started_at).toLocaleString() : '—'}
+                      </div>
                     </div>
                   ))}
+                  {recentTwo.length === 0 && (
+                    <div className="text-sm text-text-secondary">No activity yet. Start a test to see results.</div>
+                  )}
                 </div>
-              </motion.div>
-            )}
+              </div>
+
+              <div className="card-elevated">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-text">Achievements</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-surface/40 border border-elevated/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <Trophy className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-text">Consistency</div>
+                        <div className="text-xs text-text-secondary">{streak} day streak</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-surface/40 border border-elevated/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-text">Momentum</div>
+                        <div className="text-xs text-text-secondary">Avg score {avgScore}%</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Topic Progress */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="card-elevated"
-            >
-              <h3 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
-                <Target className="w-5 h-5 text-primary" />
-                Topic Mastery
-              </h3>
-
-              {dashboardData.topicProgress.length === 0 ? (
-                <p className="text-sm text-text-secondary">
-                  Topic mastery will appear after your first attempts.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {dashboardData.topicProgress.slice(0, 5).map((topic) => {
-                    const progress = Number.isFinite(topic.progress) ? Math.max(0, Math.min(100, topic.progress)) : 0;
-                    return (
-                      <div key={topic.id || topic.name}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-text">{topic.name}</span>
-                          <span className="text-sm font-bold text-primary">{progress}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress}%` }}
-                            transition={{ duration: 0.8, delay: 0.2 }}
-                            className="h-full bg-gradient-to-r from-primary to-accent"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
-
-            {/* Achievement Card */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 }}
-              className="card-elevated bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20"
-            >
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent mx-auto mb-4 flex items-center justify-center">
-                  <Award className="w-8 h-8 text-bg" />
-                </div>
-                <h4 className="text-lg font-bold text-gradient mb-2">
-                  Keep going
-                </h4>
-                <p className="text-sm text-text-secondary mb-4">
-                  Complete 3 more tests to unlock the "Dedicated Learner" badge!
-                </p>
-                <div className="w-full h-2 bg-surface rounded-full overflow-hidden mb-2">
-                  <div className="h-full w-2/3 bg-gradient-to-r from-primary to-accent" />
-                </div>
-                <p className="text-xs text-text-secondary">2 of 5 tests</p>
+          <div className="space-y-8">
+            <div className="card-elevated">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-text">Skill Analysis</h3>
+                <div className="text-xs text-text-secondary">Overview</div>
               </div>
-            </motion.div>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface/40 border border-elevated/50">
+                  <span className="text-text-secondary">Accuracy</span>
+                  <span className="font-semibold text-text">{avgScore}%</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface/40 border border-elevated/50">
+                  <span className="text-text-secondary">Speed</span>
+                  <span className="font-semibold text-text">{submittedAttempts.length ? 'Good' : '—'}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface/40 border border-elevated/50">
+                  <span className="text-text-secondary">Consistency</span>
+                  <span className="font-semibold text-text">{streak ? 'Active' : '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-elevated">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-text">Quick Actions</h3>
+              </div>
+              <div className="space-y-3">
+                <button onClick={() => navigate('/exams')} className="btn-primary w-full">Browse Tests</button>
+                <button onClick={() => navigate('/leaderboard')} className="btn-secondary w-full">View Leaderboard</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

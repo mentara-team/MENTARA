@@ -80,11 +80,13 @@ const TestTaking = () => {
       console.log('API Base URL:', api.defaults.baseURL);
       console.log('Full URL:', `${api.defaults.baseURL}exams/${examId}/start/`);
       
-      // Start the exam attempt - this returns questions too
+      // Start (or resume) the exam attempt - backend returns the same in-progress attempt
+      // so refresh will not restart the timer or create duplicate attempts.
       const startRes = await api.post(`exams/${examId}/start/`);
       console.log('✅ Start response received:', startRes.data);
-      
-      setAttemptId(startRes.data.attempt_id);
+
+      const startedAttemptId = startRes.data.attempt_id;
+      setAttemptId(startedAttemptId);
       
       // Map backend question format to frontend format
       const mappedQuestions = (startRes.data.questions || []).map(q => ({
@@ -106,6 +108,42 @@ const TestTaking = () => {
       const now = new Date();
       const secondsRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
       setTimeRemaining(secondsRemaining);
+
+      // Restore saved answers/flags (if any)
+      try {
+        const resumeRes = await api.get(`attempts/${startedAttemptId}/resume/`);
+        const restoredAnswers = {};
+        const rawAnswers = resumeRes.data?.answers || {};
+        for (const [qidRaw, payload] of Object.entries(rawAnswers)) {
+          const qid = Number(qidRaw);
+          if (!Number.isFinite(qid)) continue;
+          if (payload && typeof payload === 'object') {
+            if (Array.isArray(payload.answers) && payload.answers.length > 0) {
+              restoredAnswers[qid] = payload.answers[0];
+            } else if (Object.prototype.hasOwnProperty.call(payload, 'answer')) {
+              restoredAnswers[qid] = payload.answer;
+            } else {
+              // fallback: keep payload as-is
+              restoredAnswers[qid] = payload;
+            }
+          } else {
+            restoredAnswers[qid] = payload;
+          }
+        }
+        setAnswers(restoredAnswers);
+
+        const flaggedMap = resumeRes.data?.flagged || {};
+        const restoredFlagged = new Set(
+          Object.entries(flaggedMap)
+            .filter(([, v]) => Boolean(v))
+            .map(([k]) => Number(k))
+            .filter((n) => Number.isFinite(n))
+        );
+        setFlagged(restoredFlagged);
+      } catch (resumeErr) {
+        // Best-effort only; do not block test load.
+        console.warn('Resume attempt failed:', resumeErr);
+      }
       
       // Get exam details
       const examRes = await api.get(`exams/${examId}/`);
@@ -118,6 +156,13 @@ const TestTaking = () => {
       console.error('Error response data:', error.response?.data);
       console.error('Error response status:', error.response?.status);
       console.error('Error config:', error.config);
+      // If backend says the attempt timed out, don't restart; send user back.
+      if (error.response?.status === 410) {
+        alert('Your attempt has timed out. Please start a new test.');
+        navigate('/dashboard');
+        return;
+      }
+
       const errorMsg = error.response?.data?.detail || error.response?.data?.error || error.message || 'Failed to load test';
       alert(`Failed to load test: ${errorMsg}\n\nPlease try again.`);
       navigate('/dashboard');

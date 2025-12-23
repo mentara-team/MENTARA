@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from .models import Topic, Question, Exam, ExamQuestion
+from .models import Topic, Question, Exam, ExamQuestion, Attempt
 from rest_framework.test import APIClient
 
 User = get_user_model()
@@ -36,6 +36,31 @@ class ExamFlowTests(TestCase):
         data = res2.json()
         self.assertGreaterEqual(data['score'], 1)
         self.assertEqual(data['attempt_id'], attempt_id)
+
+    def test_start_exam_is_idempotent_for_inprogress_attempt(self):
+        start_url = reverse('start_exam', args=[self.exam.id])
+
+        res1 = self.client.post(start_url)
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.json()
+
+        res2 = self.client.post(start_url)
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+
+        self.assertEqual(data1['attempt_id'], data2['attempt_id'])
+        self.assertEqual(data1['expires_at'], data2['expires_at'])
+
+        # Ensure we didn't create a second attempt for the same user+exam.
+        self.assertEqual(
+            Attempt.objects.filter(user=self.user, exam=self.exam, status='inprogress').count(),
+            1,
+        )
+
+        # Question order should remain stable across refresh/restart.
+        qids1 = [q['id'] for q in data1.get('questions', [])]
+        qids2 = [q['id'] for q in data2.get('questions', [])]
+        self.assertEqual(qids1, qids2)
 
 
 class ReviewAndGradingPermissionsTests(TestCase):

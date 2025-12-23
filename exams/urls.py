@@ -4,7 +4,7 @@ from .views import (
     TopicViewSet, QuestionViewSet, ExamViewSet, AttemptViewSet, ResponseViewSet,
     start_exam, submit_exam, resume_attempt, save_attempt,
     bulk_create_questions, my_attempts, review_attempt, analytics_user_topics, leaderboard,
-    grade_response, upload_evaluated_pdf
+    grade_response, upload_evaluated_pdf, analytics_exams_summary
 )
 from .admin_views import (
     admin_overview, admin_users_list, admin_delete_user, 
@@ -35,6 +35,7 @@ urlpatterns = [
     path('users/me/attempts/', my_attempts, name='my_attempts'),
     path('attempts/<str:attempt_id>/review/', review_attempt, name='review_attempt'),
     path('analytics/user/me/topics/', analytics_user_topics, name='analytics_user_topics'),
+    path('analytics/exams/summary/', analytics_exams_summary, name='analytics_exams_summary'),
     path('leaderboard/', leaderboard, name='leaderboard'),
     path('responses/<int:response_id>/grade/', grade_response, name='grade_response'),
     path('attempts/<int:attempt_id>/upload-pdf/', upload_evaluated_pdf, name='upload_evaluated_pdf'),

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, ClipboardCheck, GraduationCap, Users, FileText, Sparkles } from 'lucide-react';
+import { BookOpen, ClipboardCheck, GraduationCap, Users, FileText, Sparkles, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const BASE_API = (import.meta.env.VITE_BASE_API || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
@@ -49,6 +49,7 @@ function TeacherDashboard() {
   const [exams, setExams] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [students, setStudents] = useState([]);
+  const [examAttemptSummary, setExamAttemptSummary] = useState([]);
   const [stats, setStats] = useState({ total_exams: 0, pending_grading: 0, total_students: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -73,19 +74,22 @@ function TeacherDashboard() {
 
   async function loadTeacherDashboard() {
     try {
-      const [examsRes, attemptsRes, studentsRes] = await Promise.all([
+      const [examsRes, attemptsRes, studentsRes, summaryRes] = await Promise.all([
         fetch(`${BASE_API}/exams/`, { headers: authHeaders() }),
         fetch(`${BASE_API}/attempts/`, { headers: authHeaders() }),
-        fetch(`${BASE_API}/users/`, { headers: authHeaders() })
+        fetch(`${BASE_API}/users/`, { headers: authHeaders() }),
+        fetch(`${BASE_API}/analytics/exams/summary/`, { headers: authHeaders() })
       ]);
 
       const examsData = await safeJson(examsRes);
       const attemptsData = await safeJson(attemptsRes);
       const studentsData = await safeJson(studentsRes);
+      const summaryData = await safeJson(summaryRes);
 
       const examsList = examsRes.ok ? asList(examsData) : [];
       const attemptsList = attemptsRes.ok ? asList(attemptsData) : [];
       const studentsList = studentsRes.ok ? asList(studentsData) : [];
+      const summaryList = summaryRes.ok ? asList(summaryData?.exams ?? summaryData) : [];
 
       setExams(examsList);
 
@@ -94,6 +98,8 @@ function TeacherDashboard() {
       setSubmissions(needsGrading);
 
       setStudents(studentsList);
+
+      setExamAttemptSummary(summaryList);
 
       setStats({
         total_exams: examsList.length,
@@ -106,6 +112,15 @@ function TeacherDashboard() {
       setLoading(false);
     }
   }
+
+  const formatWhen = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return '—';
+    }
+  };
 
   if (loading) {
     return (
@@ -207,6 +222,50 @@ function TeacherDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
+            <div className="card-elevated">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-text flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Attempts by Exam
+                </h2>
+              </div>
+
+              <div className="space-y-3">
+                {examAttemptSummary.slice(0, 8).map((row) => (
+                  <div
+                    key={row.exam_id}
+                    className="flex items-center justify-between p-4 rounded-xl bg-surface/40 border border-elevated/50 hover:border-primary/40 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-text truncate">{row.exam_title}</div>
+                      <div className="text-xs text-text-secondary">
+                        Last attempt: {formatWhen(row.last_attempt_at)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 text-sm">
+                      <div className="text-right">
+                        <div className="font-semibold text-text">{row.attempts_total}</div>
+                        <div className="text-xs text-text-secondary">attempts</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-text">{row.unique_students}</div>
+                        <div className="text-xs text-text-secondary">students</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-text">{row.avg_percentage}%</div>
+                        <div className="text-xs text-text-secondary">avg</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {examAttemptSummary.length === 0 && (
+                  <div className="text-text-secondary text-sm">No attempts yet.</div>
+                )}
+              </div>
+            </div>
+
             <div className="card-elevated">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-text flex items-center gap-2">

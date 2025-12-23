@@ -26,13 +26,14 @@ def admin_overview(request):
     total_questions = Question.objects.count()
     total_exams = Exam.objects.count()
     
-    active_attempts = Attempt.objects.filter(status='IN_PROGRESS').count()
-    completed_attempts = Attempt.objects.filter(status='COMPLETED').count()
+    # Attempt.status values in this codebase: inprogress/submitted/timedout
+    active_attempts = Attempt.objects.filter(status='inprogress').count()
+    completed_attempts = Attempt.objects.filter(status__in=['submitted', 'timedout']).count()
     
     # Calculate average score
     avg_score = Attempt.objects.filter(
-        status='COMPLETED',
-        total_score__isnull=False
+        status__in=['submitted', 'timedout'],
+        percentage__isnull=False
     ).aggregate(Avg('percentage'))['percentage__avg'] or 0
     
     return Response({
@@ -95,20 +96,20 @@ def admin_analytics(request):
     
     # Completion rate
     total_attempts = Attempt.objects.count()
-    completed = Attempt.objects.filter(status='COMPLETED').count()
+    completed = Attempt.objects.filter(status__in=['submitted', 'timedout']).count()
     completion_rate = (completed / total_attempts * 100) if total_attempts > 0 else 0
     
     # Average score
     avg_score = Attempt.objects.filter(
-        status='COMPLETED',
-        total_score__isnull=False
+        status__in=['submitted', 'timedout'],
+        percentage__isnull=False
     ).aggregate(Avg('percentage'))['percentage__avg'] or 0
     
     # Top performing topics - get topics with most attempts and highest avg scores
     from django.db.models import Count, Avg as DjangoAvg
     top_topics_data = Topic.objects.annotate(
-        attempt_count=Count('exams__attempts', filter=Q(exams__attempts__status='COMPLETED')),
-        avg_score=DjangoAvg('exams__attempts__percentage', filter=Q(exams__attempts__status='COMPLETED'))
+        attempt_count=Count('exams__attempts', filter=Q(exams__attempts__status__in=['submitted', 'timedout'])),
+        avg_score=DjangoAvg('exams__attempts__percentage', filter=Q(exams__attempts__status__in=['submitted', 'timedout']))
     ).filter(attempt_count__gt=0).order_by('-attempt_count', '-avg_score')[:10]
     
     top_topics = []
