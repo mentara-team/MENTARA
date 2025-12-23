@@ -97,14 +97,23 @@ def start_exam(request, exam_id):
 
     with transaction.atomic():
         # If there's an active attempt, resume it instead of creating a new one.
-        attempt = (
+        # IMPORTANT: if older buggy behavior created multiple in-progress attempts,
+        # always resume the earliest start time so refresh cannot "reset" the timer.
+        inprogress = list(
             Attempt.objects.select_for_update()
             .filter(user=request.user, exam=exam, status='inprogress')
-            .order_by('-started_at')
-            .first()
+            .order_by('started_at')
         )
 
-        if attempt is None:
+        if inprogress:
+            attempt = inprogress[0]
+            # Close out any newer duplicates created previously (defensive cleanup).
+            for dup in inprogress[1:]:
+                dup.status = 'timedout'
+                dup.finished_at = now
+                dup.duration_seconds = int(max(0, (now - dup.started_at).total_seconds()))
+                dup.save(update_fields=['status', 'finished_at', 'duration_seconds'])
+        else:
             attempt = Attempt.objects.create(user=request.user, exam=exam, started_at=now)
 
         expires_at_dt = attempt.started_at + timedelta(seconds=exam.duration_seconds)
