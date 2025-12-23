@@ -59,5 +59,6 @@ urlpatterns = [
 # In production this is not ideal for high-traffic deployments, but it unblocks
 # showing uploaded question images/PDFs on Render when not using S3.
 serve_media = os.getenv('SERVE_MEDIA', 'True') == 'True'
-if settings.DEBUG or serve_media:
+use_s3 = bool(getattr(settings, 'USE_S3', False))
+if not use_s3 and (settings.DEBUG or serve_media):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

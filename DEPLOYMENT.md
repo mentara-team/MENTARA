@@ -150,6 +150,15 @@ docker-compose exec backend python manage.py collectstatic --noinput
 docker-compose restart nginx
 ```
 
+### Uploaded question images/PDFs not showing (production)
+
+If your UI shows broken images and `/media/...` returns 404 in production, your uploads are not persisted.
+
+- **Render disk option (recommended if staying on Render):** attach a persistent disk and set `MEDIA_ROOT` to the disk mount path (example: `/var/data/media`).
+- **S3 option:** set `USE_S3=True` and configure `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME` (and optional `AWS_S3_REGION_NAME`, `AWS_S3_ENDPOINT_URL`, `AWS_S3_CUSTOM_DOMAIN`).
+
+Without one of the above, uploads may disappear after a redeploy/cold start and students won’t see the “question paper” images.
+
 ## Support
 
 For issues, contact: team@mentara.com
