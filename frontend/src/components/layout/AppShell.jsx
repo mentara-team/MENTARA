@@ -11,11 +11,12 @@ const AppShell = ({
   children,
   headerClassName = '',
   mainClassName = '',
+  containerClassName = 'max-w-7xl',
 }) => {
   return (
     <div className="min-h-screen bg-bg">
       <header className={`glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl ${headerClassName}`.trim()}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className={`${containerClassName} mx-auto px-6 py-4 flex items-center justify-between`.trim()}>
           <Link to={brandHref} className="flex items-center gap-3">
             {brandIcon}
             <div>
@@ -30,7 +31,7 @@ const AppShell = ({
         </div>
       </header>
 
-      <main className={`max-w-7xl mx-auto px-6 py-8 ${mainClassName}`.trim()}>
+      <main className={`${containerClassName} mx-auto px-6 py-8 ${mainClassName}`.trim()}>
         {children}
       </main>
     </div>

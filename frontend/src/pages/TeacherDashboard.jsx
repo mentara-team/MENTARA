@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, ClipboardCheck, GraduationCap, Users, FileText, Sparkles, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AppShell from '../components/layout/AppShell';
+import TeacherNav from '../components/layout/TeacherNav';
 
 const BASE_API = (import.meta.env.VITE_BASE_API || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
 const getToken = () => localStorage.getItem('access_token');
@@ -156,6 +157,7 @@ function TeacherDashboard() {
       )}
       brandTitle="Mentara"
       brandSubtitle="Teaching • Grading • Progress"
+      nav={<TeacherNav active="dashboard" />}
       right={(
         <>
           <Link to="/teacher/exams" className="btn-secondary text-sm">

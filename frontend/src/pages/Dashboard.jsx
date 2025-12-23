@@ -6,6 +6,7 @@ import { Award, BookOpen, Clock, Play, Target, TrendingUp, Trophy, Zap } from 'l
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import AppShell from '../components/layout/AppShell';
+import StudentNav from '../components/layout/StudentNav';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -170,11 +171,7 @@ const Dashboard = () => {
       brandTitle="Mentara"
       brandSubtitle="IB Exam Preparation"
       nav={(
-        <nav className="hidden md:flex items-center gap-2 bg-surface/40 border border-elevated/50 rounded-2xl p-1">
-          <Link to="/dashboard" className="px-4 py-2 rounded-xl text-sm font-semibold bg-elevated text-text">Dashboard</Link>
-          <Link to="/exams" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Tests</Link>
-          <Link to="/leaderboard" className="px-4 py-2 rounded-xl text-sm font-semibold text-text-secondary hover:text-text hover:bg-surface transition-colors">Leaderboard</Link>
-        </nav>
+        <StudentNav active="dashboard" />
       )}
       right={(
         <>

@@ -7,6 +7,9 @@ import {
   CheckCircle, XCircle, Circle, BarChart3
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
+import AppShell from '../components/layout/AppShell';
+import StudentNav from '../components/layout/StudentNav';
 
 const Results = () => {
   const { attemptId } = useParams();
@@ -23,16 +26,11 @@ const Results = () => {
 
   const loadResults = async () => {
     try {
-      console.log('Loading results for attempt:', attemptId);
-      
       // Get attempt details and review
       const [attemptRes, reviewRes] = await Promise.all([
         api.get(`attempts/${attemptId}/`),
         api.get(`attempts/${attemptId}/review/`)
       ]);
-      
-      console.log('Attempt data:', attemptRes.data);
-      console.log('Review data:', reviewRes.data);
       
       // Calculate results
       const attempt = attemptRes.data;
@@ -59,8 +57,8 @@ const Results = () => {
       
     } catch (error) {
       console.error('Failed to load results:', error);
-      console.error('Error details:', error.response?.data);
-      alert(`Failed to load results: ${error.response?.data?.detail || error.message}`);
+      const msg = error?.response?.data?.detail || error.message || 'Failed to load results';
+      toast.error(msg);
       navigate('/dashboard');
     } finally {
       setLoading(false);
@@ -69,12 +67,18 @@ const Results = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner w-12 h-12 mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading results...</p>
+      <AppShell
+        brandTitle="Mentara"
+        brandSubtitle="Results"
+        nav={<StudentNav active="dashboard" />}
+      >
+        <div className="min-h-[40vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+            <p className="text-text-secondary">Loading results...</p>
+          </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
@@ -92,19 +96,19 @@ const Results = () => {
   const gradeInfo = getGrade(scorePercent);
 
   return (
-    <div className="min-h-screen bg-bg">
-      {/* Header */}
-      <header className="glass border-b border-elevated/50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gradient">Test Results</h1>
-          <button onClick={() => navigate('/dashboard')} className="btn-secondary">
-            <Home className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </button>
-        </div>
-      </header>
-
-      <div className="max-w-5xl mx-auto px-6 py-12">
+    <AppShell
+      brandTitle="Mentara"
+      brandSubtitle="Test Results"
+      nav={<StudentNav active="dashboard" />}
+      right={(
+        <button onClick={() => navigate('/dashboard')} className="btn-secondary text-sm">
+          <Home className="w-4 h-4 mr-2" />
+          Back
+        </button>
+      )}
+      containerClassName="max-w-5xl"
+      mainClassName="py-12"
+    >
         {/* Score Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -331,8 +335,7 @@ const Results = () => {
             Take Another Test
           </button>
         </motion.div>
-      </div>
-    </div>
+    </AppShell>
   );
 };
 

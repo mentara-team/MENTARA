@@ -7,6 +7,8 @@ import {
   Crown, Zap, Target, Calendar
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import AppShell from '../components/layout/AppShell';
+import StudentNav from '../components/layout/StudentNav';
 
 const Leaderboard = () => {
   const navigate = useNavigate();
@@ -48,65 +50,57 @@ const Leaderboard = () => {
     return 'from-primary to-accent';
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner w-12 h-12 mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading leaderboard...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-bg">
-      {/* Header */}
-      <header className="glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning to-warning/70 flex items-center justify-center">
-              <Trophy className="w-6 h-6 text-bg" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gradient">Leaderboard</h1>
-              <p className="text-sm text-text-secondary">Top Performers</p>
-            </div>
-          </div>
-          
-          <button onClick={() => navigate('/dashboard')} className="btn-secondary">
-            <Home className="w-4 h-4 mr-2" />
-            Dashboard
-          </button>
+    <AppShell
+      brandIcon={(
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning to-warning/70 flex items-center justify-center">
+          <Trophy className="w-6 h-6 text-bg" />
         </div>
-      </header>
-
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Timeframe Selector */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-center gap-3 mb-8"
-        >
-          {[
-            { value: 'daily', label: 'Today', icon: Calendar },
-            { value: 'weekly', label: 'This Week', icon: Zap },
-            { value: 'all-time', label: 'All Time', icon: Trophy }
-          ].map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setTimeframe(tab.value)}
-              className={`px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2 ${
-                timeframe === tab.value
-                  ? 'bg-gradient-to-r from-primary to-accent text-bg shadow-glow'
-                  : 'bg-surface text-text-secondary hover:bg-elevated'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </motion.div>
+      )}
+      brandTitle="Mentara"
+      brandSubtitle="Leaderboard"
+      nav={<StudentNav active="leaderboard" />}
+      right={(
+        <button onClick={() => navigate('/dashboard')} className="btn-secondary text-sm">
+          <Home className="w-4 h-4 mr-2" />
+          Dashboard
+        </button>
+      )}
+    >
+      {loading ? (
+        <div className="min-h-[40vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+            <p className="text-text-secondary">Loading leaderboard...</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Timeframe Selector */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-center gap-3 mb-8"
+          >
+            {[
+              { value: 'daily', label: 'Today', icon: Calendar },
+              { value: 'weekly', label: 'This Week', icon: Zap },
+              { value: 'all-time', label: 'All Time', icon: Trophy }
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setTimeframe(tab.value)}
+                className={`px-6 py-3 rounded-2xl font-semibold transition-all flex items-center gap-2 ${
+                  timeframe === tab.value
+                    ? 'bg-gradient-to-r from-primary to-accent text-bg shadow-glow'
+                    : 'bg-surface text-text-secondary hover:bg-elevated'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </motion.div>
 
         {/* Top 3 Podium */}
         {leaderboard.length >= 3 && (
@@ -294,11 +288,12 @@ const Leaderboard = () => {
           <Target className="w-12 h-12 text-accent mx-auto mb-4" />
           <h3 className="text-xl font-bold text-text mb-2">Keep Climbing!</h3>
           <p className="text-text-secondary">
-            Complete more tests and improve your scores to rise up the leaderboard. You've got this! 🚀
+            Complete more tests and improve your scores to rise up the leaderboard.
           </p>
         </motion.div>
-      </div>
-    </div>
+        </>
+      )}
+    </AppShell>
   );
 };
 
