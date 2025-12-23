@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Mail, Lock, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AuthShell from '../components/layout/AuthShell';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -44,36 +44,16 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-mentara-dark flex items-center justify-center px-6 py-12 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute top-20 left-1/4 w-96 h-96 bg-mentara-cyan/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-mentara-teal/10 rounded-full blur-3xl" />
-
-      <div className="w-full max-w-md relative z-10">
-        {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <Link to="/" className="inline-flex items-center space-x-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-mentara-cyan to-mentara-teal rounded-mentara-sm flex items-center justify-center">
-              <Sparkles className="w-7 h-7 text-mentara-dark" />
-            </div>
-            <span className="text-3xl font-bold text-gradient">Mentara</span>
-          </Link>
-          <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
-          <p className="text-mentara-muted">Log in to continue your learning journey</p>
-        </motion.div>
-
-        {/* Login Form */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card-elevated"
-        >
-          <form onSubmit={handleSubmit} className="space-y-6">
+    <AuthShell
+      title="Welcome back"
+      subtitle="Log in to continue your learning journey"
+      bullets={[
+        'Premium student dashboard with analytics & streaks',
+        'Teacher + admin dashboards built for speed',
+        'Stable timer + resume on refresh during exams',
+      ]}
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error Message */}
             {(error || authError) && (
               <div className="flex items-center space-x-2 p-4 bg-mentara-error/10 border border-mentara-error/30 rounded-mentara-sm text-mentara-error">
@@ -157,23 +137,15 @@ const Login = () => {
                 <p>Admin: admin / admin123</p>
               </div>
             </div>
-          </form>
-        </motion.div>
+      </form>
 
-        {/* Sign Up Link */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-center mt-6 text-mentara-muted"
-        >
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-mentara-cyan hover:text-mentara-teal transition-colors font-medium">
-            Sign Up
-          </Link>
-        </motion.p>
-      </div>
-    </div>
+      <p className="text-center mt-6 text-mentara-muted">
+        Don't have an account?{' '}
+        <Link to="/signup" className="text-mentara-cyan hover:text-mentara-teal transition-colors font-medium">
+          Sign Up
+        </Link>
+      </p>
+    </AuthShell>
   );
 };
 
