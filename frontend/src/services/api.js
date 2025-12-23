@@ -11,6 +11,26 @@ const api = axios.create({
   },
 });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shouldRetryRequest = (error) => {
+  const config = error?.config;
+  if (!config) return false;
+
+  const method = (config.method || 'get').toLowerCase();
+  // Only retry idempotent requests to avoid accidental double creates.
+  if (!['get', 'head', 'options'].includes(method)) return false;
+
+  const retryCount = config.__retryCount || 0;
+  if (retryCount >= 3) return false;
+
+  // No response typically means network error / server cold-start / DNS.
+  if (!error.response) return true;
+
+  const status = error.response.status;
+  return status === 502 || status === 503 || status === 504;
+};
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -28,6 +48,14 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    if (shouldRetryRequest(error)) {
+      originalRequest.__retryCount = (originalRequest.__retryCount || 0) + 1;
+      // Exponential backoff: 1s, 3s, 7s
+      const backoffMs = [1000, 3000, 7000][originalRequest.__retryCount - 1] || 7000;
+      await sleep(backoffMs);
+      return api(originalRequest);
+    }
 
     // If 401 and not already retrying, try to refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -102,8 +130,11 @@ export const examsAPI = {
     api.post(`exams/${examId}/start/`),
   
   // Submit exam
-  submitExam: (attemptId) => 
-    api.post(`attempts/${attemptId}/submit/`),
+  submitExam: (examId, attemptId, responses = []) =>
+    api.post(`exams/${examId}/submit/`, {
+      attempt_id: attemptId,
+      responses,
+    }),
   
   // Get exam questions
   getExamQuestions: (examId) => 

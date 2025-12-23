@@ -177,7 +177,7 @@ const TopicManager = () => {
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => {
-                setFormData({ ...formData, parent_id: topic.id });
+                setFormData((prev) => ({ ...prev, parent_id: topic.id }));
                 setShowCreateModal(true);
               }}
               className="p-2 hover:bg-mentara-blue/20 text-mentara-blue rounded-lg transition-colors"
@@ -325,7 +325,7 @@ const TopicManager = () => {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     className="input w-full"
                     placeholder="e.g., Mathematics, Physics, Chemistry"
                   />
@@ -337,7 +337,7 @@ const TopicManager = () => {
                   </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                     className="input w-full h-24 resize-none"
                     placeholder="Brief description of this topic..."
                   />
@@ -350,7 +350,7 @@ const TopicManager = () => {
                   <input
                     type="text"
                     value={formData.icon}
-                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, icon: e.target.value }))}
                     className="input w-full"
                     placeholder="📚"
                     maxLength={2}

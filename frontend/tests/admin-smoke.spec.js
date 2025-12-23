@@ -3,9 +3,13 @@ const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
 const API_BASE = process.env.PW_API_BASE || 'http://127.0.0.1:8000/api';
+const HEALTH_TIMEOUT_MS = Number(
+  process.env.PW_HEALTH_TIMEOUT_MS || (API_BASE.includes('onrender.com') ? 90_000 : 5_000)
+);
 
 test.describe('Admin smoke', () => {
   test('login and load admin dashboard sections', async ({ page, request }) => {
+    test.setTimeout(API_BASE.includes('onrender.com') ? 180_000 : 60_000);
     /** @type {Array<string>} */ const consoleErrors = [];
     /** @type {Array<string>} */ const pageErrors = [];
     /** @type {Array<string>} */ const requestFailures = [];
@@ -29,13 +33,13 @@ test.describe('Admin smoke', () => {
 
     // Preflight: backend must be running for login to work
     try {
-      const resp = await request.get(`${API_BASE}/health/`, { timeout: 5000 });
+      const resp = await request.get(`${API_BASE}/health/`, { timeout: HEALTH_TIMEOUT_MS });
       if (!resp.ok()) {
         throw new Error(`Backend health returned ${resp.status()}`);
       }
     } catch (err) {
       throw new Error(
-        `Backend is not reachable at ${API_BASE}/health/. Start Django first (127.0.0.1:8000).\n` +
+        `Backend is not reachable at ${API_BASE}/health/ (timeout ${HEALTH_TIMEOUT_MS}ms).\n` +
           `Original error: ${String(err)}`
       );
     }

@@ -11,6 +11,70 @@ import { toast } from 'react-hot-toast';
 // Prefer maintained fork; keep compat by installing only one DnD lib.
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
+const Modal = ({ show, onClose, onSubmit, title, children, size = 'lg' }) => (
+  <AnimatePresence>
+    {show && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className={`w-full ${size === 'xl' ? 'max-w-6xl' : size === '2xl' ? 'max-w-7xl' : 'max-w-2xl'} bg-[#1A1B23] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-8`}
+        >
+          <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Sparkles className="w-6 h-6 text-purple-400" />
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+          {onSubmit ? (
+            <form onSubmit={onSubmit} className="p-6 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+              {children}
+              <div className="flex gap-3 pt-4 sticky bottom-0 bg-[#1A1B23] border-t border-white/10 mt-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  className="flex-1 btn-premium"
+                >
+                  <Save className="w-4 h-4 inline mr-2" />
+                  Save Changes
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            </form>
+          ) : (
+            <div className="p-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+              {children}
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 const ExamManagerNew = () => {
   const [exams, setExams] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -335,70 +399,6 @@ const ExamManagerNew = () => {
 
     setExamQuestions(items);
   };
-
-  const Modal = ({ show, onClose, onSubmit, title, children, size = 'lg' }) => (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full ${size === 'xl' ? 'max-w-6xl' : size === '2xl' ? 'max-w-7xl' : 'max-w-2xl'} bg-[#1A1B23] border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-8`}
-          >
-            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                <Sparkles className="w-6 h-6 text-purple-400" />
-                {title}
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            {onSubmit ? (
-              <form onSubmit={onSubmit} className="p-6 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
-                {children}
-                <div className="flex gap-3 pt-4 sticky bottom-0 bg-[#1A1B23] border-t border-white/10 mt-4">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="flex-1 btn-premium"
-                  >
-                    <Save className="w-4 h-4 inline mr-2" />
-                    Save Changes
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={onClose}
-                    className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </motion.button>
-                </div>
-              </form>
-            ) : (
-              <div className="p-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
-                {children}
-              </div>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
 
   return (
     <div className="space-y-6">

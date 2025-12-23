@@ -127,22 +127,65 @@ def submit_exam(request, exam_id):
     attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user, exam_id=exam_id)
     responses = request.data.get('responses', [])  # [{question_id, answer_payload, time_spent_seconds}]
 
+    # Idempotency: if the attempt is already submitted, return stored score.
+    # This prevents duplicate submits (e.g. user double-click, retry after timeout)
+    # from raising IntegrityError on the unique (attempt, question) constraint.
+    if attempt.status == 'submitted':
+        total_existing = 0
+        # Best-effort total for display; falls back to 0 if responses missing.
+        try:
+            total_existing = sum(
+                float(r.question.marks)
+                for r in Response.objects.filter(attempt=attempt).select_related('question')
+            )
+        except Exception:
+            total_existing = 0
+        return DRFResponse(
+            {'score': attempt.total_score, 'total': total_existing, 'attempt_id': attempt.id},
+            status=status.HTTP_200_OK,
+        )
+
     total = 0
     score = 0
     with transaction.atomic():
         for r in responses:
             qid = r.get('question_id')
             q = get_object_or_404(Question, pk=qid)
-            payload = r.get('answer_payload', {})
-            spent = int(r.get('time_spent_seconds', 0))
+
+            payload = r.get('answer_payload')
+            if payload is None:
+                # Accept alternative client shape: {answer, time_spent, flagged}
+                # Normalize to the stored JSON payload used elsewhere.
+                raw_answer = r.get('answer', None)
+                if q.type in ('MCQ', 'MULTI'):
+                    payload = {'answers': [raw_answer] if raw_answer is not None else []}
+                else:
+                    payload = {'answer': raw_answer}
+
+            spent = int(r.get('time_spent_seconds', r.get('time_spent', 0)) or 0)
+            flagged = bool(r.get('flagged_for_review', r.get('flagged', False)))
+
             correct = False
             # basic auto-grade for MCQ/MULTI/FIB
-            if q.type in ('MCQ','MULTI'):
+            if q.type in ('MCQ', 'MULTI'):
                 correct = set(map(str, payload.get('answers', []))) == set(map(str, q.correct_answers))
             elif q.type == 'FIB':
-                correct = str(payload.get('answer','')).strip().lower() in [str(a).strip().lower() for a in q.correct_answers]
+                correct = str(payload.get('answer', '')).strip().lower() in [
+                    str(a).strip().lower() for a in q.correct_answers
+                ]
+
             # STRUCT requires teacher grading
-            Response.objects.create(attempt=attempt, question=q, answer_payload=payload, correct=correct, time_spent_seconds=spent)
+            Response.objects.update_or_create(
+                attempt=attempt,
+                question=q,
+                defaults={
+                    'answer_payload': payload,
+                    'correct': correct,
+                    'time_spent_seconds': spent,
+                    'flagged_for_review': flagged,
+                },
+            )
+
             m = q.marks
             total += m
             if correct:
@@ -167,13 +210,15 @@ def submit_exam(request, exam_id):
 
     # Notify via email (dev console backend prints email)
     try:
-        send_mail(
-            subject=f"Mentara Results: {attempt.exam.title}",
-            message=f"You scored {score} out of {total}. Attempt ID: {attempt.id}",
-            from_email=None,
-            recipient_list=[request.user.email] if request.user.email else [],
-            fail_silently=True,
-        )
+        # Avoid slow/hanging SMTP calls unless email is configured.
+        if request.user.email and getattr(settings, 'EMAIL_HOST', ''):
+            send_mail(
+                subject=f"Mentara Results: {attempt.exam.title}",
+                message=f"You scored {score} out of {total}. Attempt ID: {attempt.id}",
+                from_email=None,
+                recipient_list=[request.user.email],
+                fail_silently=True,
+            )
     except Exception:
         pass
 

@@ -4,6 +4,9 @@ const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://127.0.0.1:3000';
 const API_BASE = process.env.PW_API_BASE || 'http://127.0.0.1:8000/api';
+const HEALTH_TIMEOUT_MS = Number(
+  process.env.PW_HEALTH_TIMEOUT_MS || (API_BASE.includes('onrender.com') ? 90_000 : 5_000)
+);
 
 async function assertOkJson(resp, label) {
   const text = await resp.text();
@@ -117,6 +120,7 @@ async function loginViaUi(page, username, password) {
 
 test.describe('Teacher flow (dynamic)', () => {
   test('teacher grades submission + uploads evaluated PDF; student sees remarks', async ({ page, request }) => {
+    test.setTimeout(API_BASE.includes('onrender.com') ? 240_000 : 60_000);
     /** @type {Array<string>} */ const consoleErrors = [];
     /** @type {Array<string>} */ const pageErrors = [];
     /** @type {Array<string>} */ const requestFailures = [];
@@ -135,7 +139,7 @@ test.describe('Teacher flow (dynamic)', () => {
     });
 
     // Preflight backend
-    const health = await request.get(`${API_BASE}/health/`, { timeout: 5000 });
+    const health = await request.get(`${API_BASE}/health/`, { timeout: HEALTH_TIMEOUT_MS });
     expect(health.ok(), `Backend not reachable at ${API_BASE}/health/`).toBeTruthy();
 
     // Arrange: create an exam and a submitted attempt via API

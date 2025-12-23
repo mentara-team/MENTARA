@@ -68,6 +68,10 @@ frontend/dist/
 frontend/.next/
 frontend/build/
 
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+
 # Docker
 *.log
 

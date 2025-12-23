@@ -3,6 +3,9 @@ const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://127.0.0.1:3000';
 const API_BASE = process.env.PW_API_BASE || 'http://127.0.0.1:8000/api';
+const HEALTH_TIMEOUT_MS = Number(
+  process.env.PW_HEALTH_TIMEOUT_MS || (API_BASE.includes('onrender.com') ? 90_000 : 5_000)
+);
 
 async function assertOkJson(resp, label) {
   const text = await resp.text();
@@ -92,6 +95,7 @@ async function loginViaUi(page, username, password) {
 
 test.describe('Student flow (dynamic)', () => {
   test('start exam → answer → submit → results show 100%', async ({ page, request }) => {
+    test.setTimeout(API_BASE.includes('onrender.com') ? 240_000 : 60_000);
     /** @type {Array<string>} */ const consoleErrors = [];
     /** @type {Array<string>} */ const pageErrors = [];
     /** @type {Array<string>} */ const requestFailures = [];
@@ -106,7 +110,7 @@ test.describe('Student flow (dynamic)', () => {
     });
 
     // Preflight backend
-    const health = await request.get(`${API_BASE}/health/`, { timeout: 5000 });
+    const health = await request.get(`${API_BASE}/health/`, { timeout: HEALTH_TIMEOUT_MS });
     expect(health.ok(), `Backend not reachable at ${API_BASE}/health/`).toBeTruthy();
 
     // Create deterministic exam content as admin
@@ -137,9 +141,9 @@ test.describe('Student flow (dynamic)', () => {
     await page.getByRole('button', { name: /Submit Test/i }).click();
 
     // Results
-    await expect(page).toHaveURL(/\/results\//, { timeout: 20_000 });
-    await expect(page.getByText(/Test Results/i)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/100%/)).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(/\/results\//, { timeout: 60_000 });
+    await expect(page.getByText(/Test Results/i)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/100%/)).toBeVisible({ timeout: 60_000 });
 
     expect(pageErrors, `Page errors:\n${pageErrors.join('\n')}`).toEqual([]);
     expect(consoleErrors, `Console errors:\n${consoleErrors.join('\n')}`).toEqual([]);

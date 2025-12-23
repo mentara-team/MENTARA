@@ -3,6 +3,9 @@ const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
 const API_BASE = process.env.PW_API_BASE || 'http://127.0.0.1:8000/api';
+const HEALTH_TIMEOUT_MS = Number(
+  process.env.PW_HEALTH_TIMEOUT_MS || (API_BASE.includes('onrender.com') ? 90_000 : 5_000)
+);
 
 async function waitForPostResponse(page, urlRegex) {
   return page.waitForResponse((resp) => {
@@ -22,11 +25,11 @@ async function assertOkJsonResponse(resp, label) {
 
 async function preflightBackend({ request }) {
   try {
-    const resp = await request.get(`${API_BASE}/health/`, { timeout: 5000 });
+    const resp = await request.get(`${API_BASE}/health/`, { timeout: HEALTH_TIMEOUT_MS });
     if (!resp.ok()) throw new Error(`Backend health returned ${resp.status()}`);
   } catch (err) {
     throw new Error(
-      `Backend is not reachable at ${API_BASE}/health/. Start Django first (127.0.0.1:8000).\n` +
+      `Backend is not reachable at ${API_BASE}/health/ (timeout ${HEALTH_TIMEOUT_MS}ms).\n` +
         `Original error: ${String(err)}`
     );
   }
@@ -68,6 +71,7 @@ async function loginAsAdmin(page) {
 
 test.describe('Admin CRUD smoke', () => {
   test('create topic + question + exam + add question to exam', async ({ page, request }) => {
+    test.setTimeout(API_BASE.includes('onrender.com') ? 240_000 : 60_000);
     /** @type {Array<string>} */ const consoleErrors = [];
     /** @type {Array<string>} */ const pageErrors = [];
 
@@ -225,14 +229,9 @@ test.describe('Admin CRUD smoke', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
 
     // Reload resets the AdminDashboardNew section state back to overview.
-    const navigatedToExams = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button'));
-      const target = buttons.find((b) => (b.textContent || '').includes('Exams & Tests'));
-      if (!target) return false;
-      target.click();
-      return true;
-    });
-    if (!navigatedToExams) throw new Error('Failed to navigate to Exams & Tests after reload');
+    const examsNav = page.getByRole('button', { name: /Exams\s*&\s*Tests/i });
+    await expect(examsNav).toBeVisible({ timeout: 15_000 });
+    await examsNav.click();
     await expect(page.getByPlaceholder('Search exams...')).toBeVisible({ timeout: 15_000 });
 
     const updatedExamCard = page.locator('.premium-card').filter({ hasText: examTitle }).first();

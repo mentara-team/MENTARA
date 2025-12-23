@@ -142,6 +142,7 @@ const TestTaking = () => {
   };
 
   const handleSubmit = async (autoSubmit = false) => {
+    if (submitting) return;
     if (!autoSubmit) {
       const unanswered = questions.length - Object.keys(answers).length;
       if (unanswered > 0) {
@@ -160,17 +161,31 @@ const TestTaking = () => {
         time_spent_seconds: 0
       }));
       
-      const submitRes = await api.post(`exams/${examId}/submit/`, {
-        attempt_id: attemptId,
-        responses: responses
-      });
+      const submitRes = await api.post(
+        `exams/${examId}/submit/`,
+        {
+          attempt_id: attemptId,
+          responses: responses,
+        },
+        {
+          // Render free-tier can be slow/cold; avoid hanging forever.
+          timeout: 120_000,
+        }
+      );
       
       console.log('Submit response:', submitRes.data);
-      navigate(`/results/${attemptId}`);
+      const resolvedAttemptId = submitRes.data?.attempt_id || attemptId;
+      navigate(`/results/${resolvedAttemptId}`);
     } catch (error) {
       console.error('Submission failed:', error);
       console.error('Error details:', error.response?.data);
-      alert('Failed to submit test. Please try again.');
+      const msg =
+        error.response?.data?.detail ||
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to submit test.';
+      alert(`Failed to submit test: ${msg}\n\nPlease try again.`);
+    } finally {
       setSubmitting(false);
     }
   };
