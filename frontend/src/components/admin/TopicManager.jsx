@@ -29,7 +29,7 @@ const TopicManager = () => {
     name: '',
     description: '',
     icon: '📚',
-    parent_id: null
+    parent: null
   });
 
   useEffect(() => {
@@ -55,11 +55,15 @@ const TopicManager = () => {
       await api.post('topics/', formData);
       toast.success('Topic created successfully!');
       setShowCreateModal(false);
-      setFormData({ name: '', description: '', icon: '📚', parent_id: null });
+      setFormData({ name: '', description: '', icon: '📚', parent: null });
       fetchTopics();
     } catch (error) {
       console.error('Failed to create topic:', error);
-      toast.error(error.response?.data?.detail || 'Failed to create topic');
+      toast.error(
+        error.response?.data?.detail ||
+          error.response?.data?.error ||
+          'Failed to create topic'
+      );
     }
   };
 
@@ -73,7 +77,11 @@ const TopicManager = () => {
       fetchTopics();
     } catch (error) {
       console.error('Failed to update topic:', error);
-      toast.error('Failed to update topic');
+      toast.error(
+        error.response?.data?.detail ||
+          error.response?.data?.error ||
+          'Failed to update topic'
+      );
     }
   };
 
@@ -87,7 +95,11 @@ const TopicManager = () => {
       fetchTopics();
     } catch (error) {
       console.error('Failed to delete topic:', error);
-      toast.error('Failed to delete topic');
+      toast.error(
+        error.response?.data?.detail ||
+          error.response?.data?.error ||
+          'Failed to delete topic'
+      );
     }
   };
 
@@ -97,7 +109,7 @@ const TopicManager = () => {
       name: topic.name,
       description: topic.description || '',
       icon: topic.icon || '📚',
-      parent_id: topic.parent_id
+      parent: topic.parent ?? topic.parent_id ?? null
     });
     setShowEditModal(true);
   };
@@ -121,8 +133,9 @@ const TopicManager = () => {
     });
 
     topics.forEach(topic => {
-      if (topic.parent_id && topicMap[topic.parent_id]) {
-        topicMap[topic.parent_id].children.push(topicMap[topic.id]);
+      const parentId = topic.parent_id ?? topic.parent;
+      if (parentId && topicMap[parentId]) {
+        topicMap[parentId].children.push(topicMap[topic.id]);
       } else {
         rootTopics.push(topicMap[topic.id]);
       }
@@ -177,7 +190,7 @@ const TopicManager = () => {
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => {
-                setFormData((prev) => ({ ...prev, parent_id: topic.id }));
+                setFormData((prev) => ({ ...prev, parent: topic.id }));
                 setShowCreateModal(true);
               }}
               className="p-2 hover:bg-mentara-blue/20 text-mentara-blue rounded-lg transition-colors"
@@ -246,7 +259,7 @@ const TopicManager = () => {
           </button>
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', icon: '📚', parent_id: null });
+              setFormData({ name: '', description: '', icon: '📚', parent: null });
               setShowCreateModal(true);
             }}
             className="btn-primary"

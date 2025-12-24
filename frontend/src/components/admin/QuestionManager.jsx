@@ -118,7 +118,7 @@ const QuestionManager = () => {
       }
 
       if (selectedQuestion) {
-        await api.put(`/api/questions/${selectedQuestion.id}/`, payload);
+        await api.put(`questions/${selectedQuestion.id}/`, payload);
         toast.success('Question updated successfully!');
       } else {
         await api.post('questions/', payload);
@@ -145,7 +145,11 @@ const QuestionManager = () => {
       fetchQuestions();
     } catch (error) {
       console.error('Failed to delete question:', error);
-      toast.error('Failed to delete question');
+      toast.error(
+        error.response?.data?.detail ||
+          error.response?.data?.error ||
+          'Failed to delete question'
+      );
     }
   };
 

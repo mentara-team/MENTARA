@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response as DRFResponse
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Avg, Count, Max, Q
 from django.utils import timezone
 import random
@@ -40,13 +41,50 @@ class TopicViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         return [IsAdminOrTeacher()]
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+        except ProtectedError:
+            return DRFResponse(
+                {
+                    'detail': (
+                        'Cannot delete this topic because it is linked to existing exams/questions. '
+                        'Remove or move the related content first.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return DRFResponse(status=status.HTTP_204_NO_CONTENT)
+
 class QuestionViewSet(viewsets.ModelViewSet):
-    queryset = Question.objects.all()
+    queryset = Question.objects.filter(is_active=True)
     serializer_class = QuestionSerializer
     def get_permissions(self):
         if self.request.method in ('GET','HEAD','OPTIONS'):
             return [permissions.IsAuthenticated()]
         return [IsAdminOrTeacher()]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+            return DRFResponse(status=status.HTTP_204_NO_CONTENT)
+        except ProtectedError:
+            # Production-safe behavior: if question is referenced (attempts/exams),
+            # soft-delete it instead of failing the request.
+            if getattr(instance, 'is_active', True):
+                instance.is_active = False
+                instance.save(update_fields=['is_active'])
+            return DRFResponse(
+                {
+                    'detail': (
+                        'Question is linked to existing exams/attempts, so it was archived instead of deleted.'
+                    ),
+                    'archived': True,
+                },
+                status=status.HTTP_200_OK,
+            )
 
 class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.filter(is_active=True)
