@@ -13,7 +13,7 @@ class TopicSerializer(serializers.ModelSerializer):
         fields = '__all__'
     
     def get_children(self, obj):
-        children = obj.children.all()
+        children = obj.children.filter(is_active=True)
         return TopicSerializer(children, many=True).data
     
     def get_questions_count(self, obj):

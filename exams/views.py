@@ -34,7 +34,7 @@ def _is_teacher_or_admin(user):
     return bool(user.is_staff or role in ('ADMIN', 'TEACHER') or user.groups.filter(name__iexact='Teachers').exists())
 
 class TopicViewSet(viewsets.ModelViewSet):
-    queryset = Topic.objects.all()
+    queryset = Topic.objects.filter(is_active=True)
     serializer_class = TopicSerializer
     def get_permissions(self):
         if self.request.method in ('GET','HEAD','OPTIONS'):
@@ -46,14 +46,27 @@ class TopicViewSet(viewsets.ModelViewSet):
         try:
             self.perform_destroy(instance)
         except ProtectedError:
+            # Production-safe behavior: if topic is referenced (questions/exams),
+            # archive the topic (and its subtree) instead of failing.
+            to_archive = [instance.id]
+            idx = 0
+            while idx < len(to_archive):
+                parent_id = to_archive[idx]
+                child_ids = list(
+                    Topic.objects.filter(parent_id=parent_id, is_active=True).values_list('id', flat=True)
+                )
+                to_archive.extend([cid for cid in child_ids if cid not in to_archive])
+                idx += 1
+
+            Topic.objects.filter(id__in=to_archive).update(is_active=False)
             return DRFResponse(
                 {
                     'detail': (
-                        'Cannot delete this topic because it is linked to existing exams/questions. '
-                        'Remove or move the related content first.'
-                    )
+                        'Topic is linked to existing exams/questions, so it was archived instead of deleted.'
+                    ),
+                    'archived': True,
                 },
-                status=status.HTTP_409_CONFLICT,
+                status=status.HTTP_200_OK,
             )
         return DRFResponse(status=status.HTTP_204_NO_CONTENT)
 

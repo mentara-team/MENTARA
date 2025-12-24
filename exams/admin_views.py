@@ -22,7 +22,7 @@ def admin_overview(request):
     total_users = User.objects.count()
     total_students = User.objects.filter(role='STUDENT').count()
     total_teachers = User.objects.filter(role='TEACHER').count()
-    total_topics = Topic.objects.count()
+    total_topics = Topic.objects.filter(is_active=True).count()
     total_questions = Question.objects.count()
     total_exams = Exam.objects.count()
     
@@ -107,7 +107,7 @@ def admin_analytics(request):
     
     # Top performing topics - get topics with most attempts and highest avg scores
     from django.db.models import Count, Avg as DjangoAvg
-    top_topics_data = Topic.objects.annotate(
+    top_topics_data = Topic.objects.filter(is_active=True).annotate(
         attempt_count=Count('exams__attempts', filter=Q(exams__attempts__status__in=['submitted', 'timedout'])),
         avg_score=DjangoAvg('exams__attempts__percentage', filter=Q(exams__attempts__status__in=['submitted', 'timedout']))
     ).filter(attempt_count__gt=0).order_by('-attempt_count', '-avg_score')[:10]

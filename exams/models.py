@@ -14,6 +14,7 @@ class Topic(TimeStamped):
     icon = models.CharField(max_length=120, blank=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
     order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
     class Meta:
         indexes = [models.Index(fields=['parent','order'])]
         ordering = ['parent__id','order','name']
