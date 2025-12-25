@@ -70,15 +70,14 @@ const AuthShell = ({
         <div className="flex items-center justify-center px-6 py-12 lg:px-10">
           <div className="w-full max-w-md">
             {/* Mobile logo */}
-            <div className="lg:hidden text-center mb-8">
-              <Link to="/" className="inline-flex items-center space-x-3 mb-6">
+            <div className="lg:hidden text-center mb-6">
+              <Link to="/" className="inline-flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-mentara-cyan to-mentara-teal rounded-mentara-sm flex items-center justify-center">
                   <Sparkles className="w-7 h-7 text-mentara-dark" />
                 </div>
                 <span className="text-3xl font-bold text-gradient">Mentara</span>
               </Link>
-              <h1 className="text-3xl font-bold mb-2 text-white">{title}</h1>
-              <p className="text-mentara-muted">{subtitle}</p>
+              <div className="mt-2 text-sm text-mentara-muted">{sideSubtitle}</div>
             </div>
 
             <motion.div
@@ -86,8 +85,8 @@ const AuthShell = ({
               animate={{ opacity: 1, y: 0 }}
               className="card-elevated"
             >
-              {/* Desktop heading */}
-              <div className="hidden lg:block mb-6">
+              {/* Heading */}
+              <div className="mb-6">
                 <h1 className="text-3xl font-bold text-white">{title}</h1>
                 <p className="text-mentara-muted mt-1">{subtitle}</p>
               </div>

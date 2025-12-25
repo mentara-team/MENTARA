@@ -38,6 +38,13 @@
     box-shadow: 0 12px 40px rgba(2, 6, 23, 0.55);
     transform: translateY(-4px);
   }
+
+  .btn-mentara:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
   
   .btn-mentara:active {
     transform: translateY(0) scale(0.95);
