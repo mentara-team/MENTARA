@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
+import { BackToTopButton, ScrollToTopOnRouteChange } from './components/ScrollToTop';
 
 // Pages
 import Landing from './pages/Landing';
@@ -61,6 +62,7 @@ const ProtectedRoute = ({ children, requireAuth = true, requireRole = null }) =>
 function App() {
   return (
     <div className="min-h-screen bg-mentara-dark">
+      <ScrollToTopOnRouteChange />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -86,6 +88,8 @@ function App() {
           }
         }}
       />
+
+      <BackToTopButton />
       
       <Routes>
         {/* Public Routes */}
