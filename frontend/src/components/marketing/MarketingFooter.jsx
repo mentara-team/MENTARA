@@ -5,6 +5,13 @@ import { Github, Instagram, Linkedin, Mail, Phone, Youtube } from 'lucide-react'
 const WHATSAPP_NUMBER = (import.meta?.env?.VITE_WHATSAPP_NUMBER || '919999999999').replace(/\D/g, '');
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hi Mentara team! I want a demo / early access.')}`;
 
+const SOCIAL = {
+  instagram: (import.meta?.env?.VITE_SOCIAL_INSTAGRAM || 'https://instagram.com').trim(),
+  linkedin: (import.meta?.env?.VITE_SOCIAL_LINKEDIN || 'https://linkedin.com').trim(),
+  youtube: (import.meta?.env?.VITE_SOCIAL_YOUTUBE || 'https://youtube.com').trim(),
+  github: (import.meta?.env?.VITE_SOCIAL_GITHUB || 'https://github.com').trim(),
+};
+
 export default function MarketingFooter() {
   return (
     <footer className="mt-20 border-t border-white/10">
@@ -28,7 +35,9 @@ export default function MarketingFooter() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <a
-                href="#"
+                href={SOCIAL.instagram}
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
                 aria-label="Instagram"
                 title="Instagram"
@@ -36,7 +45,9 @@ export default function MarketingFooter() {
                 <Instagram className="w-5 h-5 text-white" />
               </a>
               <a
-                href="#"
+                href={SOCIAL.linkedin}
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
                 aria-label="LinkedIn"
                 title="LinkedIn"
@@ -44,7 +55,9 @@ export default function MarketingFooter() {
                 <Linkedin className="w-5 h-5 text-white" />
               </a>
               <a
-                href="#"
+                href={SOCIAL.youtube}
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
                 aria-label="YouTube"
                 title="YouTube"
@@ -52,7 +65,9 @@ export default function MarketingFooter() {
                 <Youtube className="w-5 h-5 text-white" />
               </a>
               <a
-                href="#"
+                href={SOCIAL.github}
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
                 aria-label="GitHub"
                 title="GitHub"
