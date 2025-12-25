@@ -135,6 +135,23 @@ export default function Home() {
 
           <div className="relative">
             <div className="glass-card p-6 border border-white/10">
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="absolute -top-4 left-6"
+              >
+                <div className="relative overflow-hidden rounded-full border border-white/10 bg-white/5 px-4 py-1.5">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/25 via-pink-500/20 to-blue-500/25" />
+                  <motion.div
+                    className="absolute -inset-y-2 -left-24 w-24 bg-white/20 blur-md"
+                    animate={{ x: [0, 520] }}
+                    transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <div className="relative text-xs font-semibold text-white">Launching Soon • Early Access Open</div>
+                </div>
+              </motion.div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-white font-bold">Product Tour</div>

@@ -1,10 +1,13 @@
 import React from 'react';
 import MarketingNav from './MarketingNav';
 import MarketingFooter from './MarketingFooter';
+import LaunchBanner from './LaunchBanner';
+import ChatWidget from './ChatWidget';
 
 export default function MarketingPageShell({ children }) {
   return (
     <div className="min-h-screen bg-[#0A0B0F] overflow-hidden">
+      <LaunchBanner />
       <MarketingNav />
       <div className="pt-24">
         <div className="absolute inset-0 pointer-events-none">
@@ -28,6 +31,7 @@ export default function MarketingPageShell({ children }) {
         </div>
         <div className="relative z-10">{children}</div>
       </div>
+      <ChatWidget />
       <MarketingFooter />
     </div>
   );
