@@ -68,6 +68,9 @@ frontend/dist/
 frontend/.next/
 frontend/build/
 
+# Marketing template sources (kept local; production uses frontend/public/marketing)
+frontend/templates/
+
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
