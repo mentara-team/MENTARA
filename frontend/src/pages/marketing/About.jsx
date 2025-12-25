@@ -53,16 +53,59 @@ export default function About() {
 
           <div>
             <div className="glass-card p-6">
-              <img
-                src="/marketing/hero-about.svg"
-                alt="Mentara vision illustration"
-                className="w-full rounded-2xl border border-white/10"
-                loading="lazy"
-              />
-              <div className="mt-4 text-sm text-gray-400">
-                Vision: build structured learning systems that look premium, feel simple, and deliver results.
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="relative rounded-2xl overflow-hidden border border-white/10">
+                  <img
+                    src="/marketing/edukate/about.jpg"
+                    alt="Mentara learning"
+                    className="w-full h-52 object-cover opacity-95"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-70" />
+                </div>
+                <div className="relative rounded-2xl overflow-hidden border border-white/10">
+                  <img
+                    src="/marketing/fox/about.jpg"
+                    alt="Mentara classroom"
+                    className="w-full h-52 object-cover opacity-95"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-70" />
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                <div className="premium-card">
+                  <div className="text-white font-semibold">Mission</div>
+                  <div className="mt-2 text-gray-400">
+                    Make exam preparation feel structured, motivating, and premium — with dashboards that guide every role.
+                  </div>
+                </div>
+                <div className="premium-card">
+                  <div className="text-white font-semibold">How we do it</div>
+                  <div className="mt-2 text-gray-400">
+                    Clean UX, gamified feedback loops (progress, streaks, rank), and workflows that stay reliable in production.
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { k: 'Designed for institutes', v: 'Admin control + teacher evaluation + structured content.' },
+              { k: 'Built for serious students', v: 'Timed mocks, clean review, and measurable progress.' },
+              { k: 'Fast to operate', v: 'Minimal friction: create → attempt → grade → insight.' },
+            ].map((s) => (
+              <div key={s.k} className="glass-card p-6">
+                <div className="text-white font-bold">{s.k}</div>
+                <div className="mt-2 text-gray-400">{s.v}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>

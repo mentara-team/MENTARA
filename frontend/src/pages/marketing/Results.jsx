@@ -53,9 +53,9 @@ export default function Results() {
 
           <div className="glass-card p-6">
             <img
-              src="/marketing/hero-results.svg"
-              alt="Analytics illustration"
-              className="w-full rounded-2xl border border-white/10"
+              src="/marketing/edukate/feature.jpg"
+              alt="Mentara analytics preview"
+              className="w-full rounded-2xl border border-white/10 object-cover"
               loading="lazy"
             />
             <div className="mt-5 grid gap-3">
@@ -65,6 +65,29 @@ export default function Results() {
                   <Bar label="Mechanics" value={78} />
                   <Bar label="Waves" value={64} />
                   <Bar label="Electricity" value={88} />
+                </div>
+              </div>
+              <div className="premium-card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-white font-semibold">Achievement snapshot</div>
+                    <div className="mt-1 text-sm text-gray-400">Streaks, mastery, and rank—gamified but clean.</div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    { k: 'Streak', v: '7 days' },
+                    { k: 'Mastery', v: 'Level 4' },
+                    { k: 'Rank', v: '#12' },
+                  ].map((x) => (
+                    <div key={x.k} className="glass-card p-4">
+                      <div className="text-xs text-gray-400">{x.k}</div>
+                      <div className="mt-1 text-white font-bold">{x.v}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
               <div className="premium-card">

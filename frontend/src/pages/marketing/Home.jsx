@@ -29,6 +29,27 @@ export default function Home() {
     'Designed for a premium, modern “wow” experience',
   ];
 
+  const featuredPacks = [
+    {
+      title: 'Concept Sprint Packs',
+      desc: 'Short, focused practice to master one chapter.',
+      img: '/marketing/edukate/courses-1.jpg',
+      meta: '10–15 mins • Smart review',
+    },
+    {
+      title: 'Mock Exam Mode',
+      desc: 'Real timer + autosave for exam-day confidence.',
+      img: '/marketing/fox/bg_2.jpg',
+      meta: 'Timed • Auto-submit',
+    },
+    {
+      title: 'Teacher Evaluation',
+      desc: 'Uploads, remarks, and marking in one flow.',
+      img: '/marketing/edukate/feature.jpg',
+      meta: 'PDF uploads • Rubrics',
+    },
+  ];
+
   return (
     <MarketingPageShell>
       <section className="relative px-6 py-16">
@@ -96,6 +117,20 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: '3 Dashboards', value: 'Admin • Teacher • Student' },
+                { label: 'Autosave', value: 'Refresh-safe exams' },
+                { label: 'Question Bank', value: 'MCQ + Structured' },
+                { label: 'Analytics', value: 'Instant insights' },
+              ].map((s) => (
+                <div key={s.label} className="glass-card p-4">
+                  <div className="text-xs text-gray-400">{s.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-white">{s.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="relative">
@@ -103,24 +138,70 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-white font-bold">Product Tour</div>
-                  <div className="text-sm text-gray-400 mt-1">A quick look at how Mentara works end-to-end.</div>
+                  <div className="text-sm text-gray-400 mt-1">Premium UI + real exam workflows, end-to-end.</div>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                   <Play className="w-5 h-5 text-white" />
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl overflow-hidden border border-white/10 bg-black/30">
-                <div className="aspect-video w-full flex items-center justify-center">
-                  <img
-                    src="/marketing/hero-home.svg"
-                    alt="Mentara hero visual"
-                    className="w-full h-full object-cover opacity-95"
-                    loading="lazy"
-                  />
+              <div className="mt-5 relative rounded-2xl overflow-hidden border border-white/10 bg-black/30">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10" />
+                <div className="relative aspect-video w-full">
+                  <motion.div
+                    className="absolute inset-0"
+                    style={{ perspective: 1200 }}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <motion.div
+                      whileHover={{ rotateX: 3, rotateY: -4, y: -6 }}
+                      transition={{ type: 'spring', stiffness: 160, damping: 18 }}
+                      className="absolute left-6 top-6 right-14 bottom-10 rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                      style={{ transformStyle: 'preserve-3d' }}
+                    >
+                      <img
+                        src="/marketing/edukate/header.jpg"
+                        alt="Mentara hero"
+                        className="w-full h-full object-cover opacity-95"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-70" />
+                    </motion.div>
+
+                    <motion.div
+                      whileHover={{ rotateX: 2, rotateY: 6, y: -4 }}
+                      transition={{ type: 'spring', stiffness: 160, damping: 18 }}
+                      className="absolute right-6 top-10 w-44 sm:w-52 aspect-[4/5] rounded-2xl overflow-hidden border border-white/10 bg-black/30"
+                      style={{ transform: 'translateZ(24px)', transformStyle: 'preserve-3d' }}
+                    >
+                      <img
+                        src="/marketing/fox/bg_1.jpg"
+                        alt="Learning dashboard preview"
+                        className="w-full h-full object-cover opacity-90"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-65" />
+                    </motion.div>
+
+                    <motion.div
+                      whileHover={{ rotateX: -2, rotateY: -6, y: -3 }}
+                      transition={{ type: 'spring', stiffness: 160, damping: 18 }}
+                      className="absolute left-10 bottom-6 w-48 sm:w-56 aspect-[16/10] rounded-2xl overflow-hidden border border-white/10 bg-black/30"
+                      style={{ transform: 'translateZ(18px)', transformStyle: 'preserve-3d' }}
+                    >
+                      <img
+                        src="/marketing/edukate/courses-3.jpg"
+                        alt="Practice preview"
+                        className="w-full h-full object-cover opacity-90"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-65" />
+                    </motion.div>
+                  </motion.div>
                 </div>
               </div>
-
             </div>
 
             <div className="mt-6 grid sm:grid-cols-2 gap-4">
@@ -177,6 +258,49 @@ export default function Home() {
                 <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300">Analytics</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-end justify-between gap-6 flex-wrap">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-white">Featured learning packs</h2>
+              <p className="mt-3 text-gray-400 max-w-2xl">
+                Borrowed from modern edtech patterns: visually rich cards, clear value, and smooth interactions.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/courses')}
+              className="px-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-semibold border border-white/10"
+            >
+              Explore all
+            </button>
+          </div>
+
+          <div className="mt-10 grid md:grid-cols-3 gap-6">
+            {featuredPacks.map((p) => (
+              <motion.div
+                key={p.title}
+                whileHover={{ y: -6 }}
+                transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+                className="premium-card overflow-hidden"
+              >
+                <div className="relative h-44 rounded-2xl overflow-hidden border border-white/10">
+                  <img src={p.img} alt={p.title} className="w-full h-full object-cover opacity-90" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-80" />
+                </div>
+                <div className="mt-5">
+                  <div className="text-white font-bold text-lg">{p.title}</div>
+                  <div className="mt-2 text-gray-400">{p.desc}</div>
+                  <div className="mt-4 text-xs text-gray-300 px-3 py-2 rounded-xl bg-white/5 border border-white/10 inline-flex">
+                    {p.meta}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>

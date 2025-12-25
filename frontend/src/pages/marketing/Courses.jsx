@@ -13,24 +13,28 @@ export default function Courses() {
       title: 'Topic Packs',
       desc: 'Focused sets to master one concept at a time.',
       tags: ['Practice', 'Confidence', 'Progress'],
+      img: '/marketing/edukate/courses-2.jpg',
     },
     {
       icon: Timer,
       title: 'Mock Exams',
       desc: 'Timed tests that simulate real exam pressure.',
       tags: ['Timed', 'Auto-submit', 'Review'],
+      img: '/marketing/fox/bg_3.jpg',
     },
     {
       icon: NotebookPen,
       title: 'Structured Answers',
       desc: 'Upload answers, get teacher evaluation and remarks.',
       tags: ['Uploads', 'Teacher grading', 'PDF'],
+      img: '/marketing/edukate/feature.jpg',
     },
     {
       icon: BookOpen,
       title: 'Question Bank',
       desc: 'MCQ and structured questions in a clean library.',
       tags: ['Library', 'Searchable', 'Organized'],
+      img: '/marketing/edukate/courses-5.jpg',
     },
   ];
 
@@ -73,9 +77,9 @@ export default function Courses() {
 
           <div className="glass-card p-6">
             <img
-              src="/marketing/hero-courses.svg"
-              alt="Course library illustration"
-              className="w-full rounded-2xl border border-white/10"
+              src="/marketing/edukate/courses-6.jpg"
+              alt="Mentara course library"
+              className="w-full rounded-2xl border border-white/10 object-cover"
               loading="lazy"
             />
           </div>
@@ -91,20 +95,32 @@ export default function Courses() {
 
           <div className="mt-10 grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {cards.map((c) => (
-              <div key={c.title} className="premium-card">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <c.icon className="w-6 h-6 text-white" />
+              <motion.div
+                key={c.title}
+                whileHover={{ y: -6 }}
+                transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+                className="premium-card overflow-hidden"
+              >
+                <div className="relative h-36 rounded-2xl overflow-hidden border border-white/10">
+                  <img src={c.img} alt={c.title} className="w-full h-full object-cover opacity-90" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0B0F] via-transparent to-transparent opacity-80" />
+                  <div className="absolute top-3 left-3 w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center border border-white/10">
+                    <c.icon className="w-5 h-5 text-white" />
+                  </div>
                 </div>
-                <div className="mt-4 text-white font-bold text-lg">{c.title}</div>
-                <div className="mt-2 text-gray-400">{c.desc}</div>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {c.tags.map((t) => (
-                    <span key={t} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300">
-                      {t}
-                    </span>
-                  ))}
+
+                <div className="mt-5">
+                  <div className="text-white font-bold text-lg">{c.title}</div>
+                  <div className="mt-2 text-gray-400">{c.desc}</div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {c.tags.map((t) => (
+                      <span key={t} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>

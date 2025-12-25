@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Mail, MapPin, Phone, Send } from 'lucide-react';
+import { CalendarDays, Clock, Mail, MapPin, Phone, Send, ShieldCheck } from 'lucide-react';
 import MarketingPageShell from '../../components/marketing/MarketingPageShell';
 
 export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
   const [sending, setSending] = useState(false);
+
+  const faqs = useMemo(
+    () => [
+      {
+        q: 'Can you demo Mentara for a client presentation?',
+        a: 'Yes. We can run a guided walkthrough focused on your target audience (student/teacher/admin) with feature highlights.',
+      },
+      {
+        q: 'Is it safe against refresh/restart during exams?',
+        a: 'Yes. Attempts resume correctly and timing is preserved to protect exam integrity.',
+      },
+      {
+        q: 'Can you customize branding for an institute?',
+        a: 'Yes. We can adapt copy, colors, and landing assets while keeping the premium product UI intact.',
+      },
+    ],
+    []
+  );
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -49,13 +67,63 @@ export default function Contact() {
               <InfoRow icon={MapPin} title="Location" value="India" />
             </div>
 
-            <div className="mt-8 glass-card p-6">
-              <img
-                src="/marketing/hero-contact.svg"
-                alt="Support illustration"
-                className="w-full rounded-2xl border border-white/10"
-                loading="lazy"
-              />
+            <div className="mt-8 grid sm:grid-cols-3 gap-4">
+              <div className="glass-card p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-400">Response time</div>
+                    <div className="mt-1 text-white font-bold">&lt; 24 hours</div>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-gray-400">Fast replies for pilots, demos, and rollout questions.</div>
+              </div>
+              <div className="glass-card p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-400">Book a demo</div>
+                    <div className="mt-1 text-white font-bold">15–30 min</div>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <CalendarDays className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-gray-400">We’ll show the exact dashboards your client cares about.</div>
+              </div>
+              <div className="glass-card p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-400">Integrity</div>
+                    <div className="mt-1 text-white font-bold">Exam-safe</div>
+                  </div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <ShieldCheck className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-gray-400">Attempts resume reliably without timer resets.</div>
+              </div>
+            </div>
+
+            <div className="mt-6 glass-card p-6">
+              <div className="grid grid-cols-2 gap-3">
+                <img
+                  src="/marketing/edukate/page-header.jpg"
+                  alt="Mentara support"
+                  className="h-44 w-full rounded-2xl border border-white/10 object-cover"
+                  loading="lazy"
+                />
+                <img
+                  src="/marketing/fox/bg_2.jpg"
+                  alt="Mentara demo"
+                  className="h-44 w-full rounded-2xl border border-white/10 object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="mt-4 text-sm text-gray-400">
+                Prefer WhatsApp/Meet? Mention it in your message and we’ll coordinate.
+              </div>
             </div>
           </div>
 
@@ -103,11 +171,22 @@ export default function Contact() {
               >
                 {sending ? 'Sending...' : 'Send Message'} <Send className="w-4 h-4" />
               </button>
+            </form>
 
-              <div className="text-xs text-gray-500">
+            <div className="mt-8">
+              <div className="text-white font-bold">Quick FAQ</div>
+              <div className="mt-3 grid gap-3">
+                {faqs.map((f) => (
+                  <div key={f.q} className="premium-card">
+                    <div className="text-white font-semibold">{f.q}</div>
+                    <div className="mt-2 text-gray-400">{f.a}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 text-xs text-gray-500">
                 This form is static right now (client-side). If you want, I can wire it to a backend endpoint or a hosted form later.
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </section>
