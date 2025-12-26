@@ -18,7 +18,17 @@ export default function MarketingFooter() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid md:grid-cols-4 gap-10">
           <div className="md:col-span-2">
-            <div className="text-xl font-bold text-white">Mentara</div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 flex items-center justify-center">
+                <img
+                  src="/branding/mentara-logo-transparent.png"
+                  alt="Mentara logo"
+                  className="h-10 w-auto object-contain drop-shadow-sm"
+                  draggable="false"
+                />
+              </div>
+              <div className="text-xl font-bold text-white">Mentara</div>
+            </div>
             <p className="text-gray-400 mt-3 max-w-xl">
               A premium exam practice platform for students, teachers, and admins —
               designed to feel effortless and look world-class.
@@ -75,9 +85,7 @@ export default function MarketingFooter() {
                 <Github className="w-5 h-5 text-white" />
               </a>
             </div>
-            <p className="text-xs text-gray-500 mt-6">
-              © {new Date().getFullYear()} Mentara. All rights reserved.
-            </p>
+            <p className="text-xs text-gray-500 mt-6">© {new Date().getFullYear()} Mentara™. All rights reserved.</p>
           </div>
 
           <div>

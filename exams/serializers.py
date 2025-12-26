@@ -1,12 +1,19 @@
 from rest_framework import serializers
-from .models import Topic, Question, Exam, ExamQuestion, Attempt, Response, LeaderboardEntry
+from .models import Curriculum, Topic, Question, Exam, ExamQuestion, Attempt, Response, LeaderboardEntry
 from accounts.serializers import UserMinimalSerializer
+
+
+class CurriculumSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Curriculum
+        fields = '__all__'
 
 
 class TopicSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
     questions_count = serializers.SerializerMethodField()
     exams_count = serializers.SerializerMethodField()
+    curriculum_name = serializers.CharField(source='curriculum.name', read_only=True)
     
     class Meta:
         model = Topic
@@ -57,8 +64,6 @@ class ExamSerializer(serializers.ModelSerializer):
     attempts_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()  # Alias for frontend compatibility
     duration = serializers.SerializerMethodField()  # Convert seconds to minutes
-    level = serializers.SerializerMethodField()  # Extract from title or default
-    paper_number = serializers.SerializerMethodField()  # Extract from title or default
     
     class Meta:
         model = Exam
@@ -80,23 +85,26 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_duration(self, obj):
         """Convert duration_seconds to minutes"""
         return obj.duration_seconds // 60
-    
-    def get_level(self, obj):
-        """Extract level from title or return default"""
-        title_upper = obj.title.upper()
-        if 'HL' in title_upper:
-            return 'HL'
-        elif 'SL' in title_upper:
-            return 'SL'
-        return 'SL'  # Default to SL
-    
-    def get_paper_number(self, obj):
-        """Extract paper number from title or return default"""
-        import re
-        match = re.search(r'paper\s*(\d+)', obj.title, re.IGNORECASE)
-        if match:
-            return int(match.group(1))
-        return 1  # Default to Paper 1
+
+    # Back-compat: legacy data stored level/paper in title. Prefer explicit fields.
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not data.get('level'):
+            title_upper = (instance.title or '').upper()
+            if 'HL' in title_upper:
+                data['level'] = 'HL'
+            elif 'SL' in title_upper:
+                data['level'] = 'SL'
+        if not data.get('paper_number'):
+            import re
+
+            match = re.search(r'paper\s*(\d+)', instance.title or '', re.IGNORECASE)
+            if match:
+                try:
+                    data['paper_number'] = int(match.group(1))
+                except Exception:
+                    pass
+        return data
 
 
 class ExamDetailSerializer(serializers.ModelSerializer):

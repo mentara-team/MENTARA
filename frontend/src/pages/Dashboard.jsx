@@ -163,11 +163,6 @@ const Dashboard = () => {
 
   return (
     <AppShell
-      brandIcon={(
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-          <BookOpen className="w-6 h-6 text-bg" />
-        </div>
-      )}
       brandTitle="Mentara"
       brandSubtitle="IB Exam Preparation"
       nav={(

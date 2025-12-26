@@ -53,7 +53,7 @@ export default function LaunchBanner() {
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[80]"
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -70,20 +70,24 @@ export default function LaunchBanner() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
             transition={{ duration: 0.22 }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(920px,calc(100vw-2rem))]"
+            className="relative w-full max-w-4xl"
             style={{ transformStyle: 'preserve-3d' }}
           >
-            <div className="glass-card border border-white/10 overflow-hidden">
+            <div className="glass-card border border-white/10 overflow-hidden max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)]">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-transparent to-pink-500/15" />
-                <div className="relative px-6 py-5 flex items-start gap-4">
+                <div className="relative px-5 sm:px-6 py-5 flex items-start gap-4 overflow-y-auto">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-white font-bold text-xl">Launch Offer • Early Access</div>
-                    <div className="mt-1 text-gray-300">
-                      Get a premium Mentara demo experience — perfect for freelancer client presentations and institute pilots.
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-200">
+                      <span className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-pink-400" />
+                      Early‑Bird Offer • Limited slots
+                    </div>
+                    <div className="mt-2 text-white font-bold text-xl sm:text-2xl">Launch Offer • Early Access</div>
+                    <div className="mt-1 text-gray-300 text-sm sm:text-base">
+                      Try Mentara early: a premium demo experience built for institutes and freelancers — fast setup, paper-ready workflow, and clean dashboards.
                     </div>
 
                     <div className="mt-4 grid sm:grid-cols-3 gap-3">

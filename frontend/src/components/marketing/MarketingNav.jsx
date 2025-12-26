@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Menu, X } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const navLinkBase = 'text-sm font-semibold transition-colors';
@@ -48,8 +48,13 @@ export default function MarketingNav() {
               navigate('/');
             }}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 flex items-center justify-center">
+              <img
+                src="/branding/mentara-logo-transparent.png"
+                alt="Mentara logo"
+                className="h-10 w-auto object-contain drop-shadow-sm"
+                draggable="false"
+              />
             </div>
             <div className="text-left">
               <div className="text-lg font-bold text-white leading-tight">Mentara</div>

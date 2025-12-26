@@ -88,11 +88,6 @@ function GradingPage() {
 
   return (
     <AppShell
-      brandIcon={(
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-          <ClipboardCheck className="w-6 h-6 text-bg" />
-        </div>
-      )}
       brandTitle="Mentara"
       brandSubtitle="Grading"
       nav={<TeacherNav active="dashboard" />}

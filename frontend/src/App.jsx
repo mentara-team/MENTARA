@@ -26,6 +26,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import GradingPage from './pages/GradingPage';
 import TeacherExams from './pages/TeacherExams';
 import ExamsList from './pages/ExamsList';
+import Library from './pages/Library';
 import AttemptReview from './pages/AttemptReview';
 import TestTaking from './pages/TestTaking';
 import Results from './pages/Results';
@@ -157,6 +158,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/library"
+          element={
+            <ProtectedRoute>
+              <Library />
             </ProtectedRoute>
           }
         />

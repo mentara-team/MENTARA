@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    TopicViewSet, QuestionViewSet, ExamViewSet, AttemptViewSet, ResponseViewSet,
+    CurriculumViewSet, TopicViewSet, QuestionViewSet, ExamViewSet, AttemptViewSet, ResponseViewSet,
     start_exam, submit_exam, resume_attempt, save_attempt,
     bulk_create_questions, my_attempts, review_attempt, analytics_user_topics, leaderboard,
     grade_response, upload_evaluated_pdf, analytics_exams_summary
@@ -12,6 +12,7 @@ from .admin_views import (
 )
 
 router = DefaultRouter()
+router.register(r'curriculums', CurriculumViewSet)
 router.register(r'topics', TopicViewSet)
 router.register(r'questions', QuestionViewSet)
 router.register(r'exams', ExamViewSet)

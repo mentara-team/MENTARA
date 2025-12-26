@@ -13,12 +13,24 @@ const AppShell = ({
   mainClassName = '',
   containerClassName = 'max-w-7xl',
 }) => {
+  const logoSrc = '/branding/mentara-logo-transparent.png';
+  const resolvedBrandIcon = brandIcon ?? (
+    <div className="w-11 h-11 flex items-center justify-center">
+      <img
+        src={logoSrc}
+        alt="Mentara logo"
+        className="h-9 w-auto object-contain drop-shadow-sm"
+        draggable="false"
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-bg">
       <header className={`glass border-b border-elevated/50 sticky top-0 z-40 backdrop-blur-xl ${headerClassName}`.trim()}>
         <div className={`${containerClassName} mx-auto px-6 py-4 flex items-center justify-between`.trim()}>
           <Link to={brandHref} className="flex items-center gap-3">
-            {brandIcon}
+            {resolvedBrandIcon}
             <div>
               <div className="text-xl font-bold text-gradient">{brandTitle}</div>
               {brandSubtitle ? <div className="text-sm text-text-secondary">{brandSubtitle}</div> : null}
@@ -34,6 +46,10 @@ const AppShell = ({
       <main className={`${containerClassName} mx-auto px-6 py-8 ${mainClassName}`.trim()}>
         {children}
       </main>
+
+      <footer className={`${containerClassName} mx-auto px-6 pb-10 text-xs text-text-secondary`.trim()}>
+        © {new Date().getFullYear()} Mentara™. All rights reserved.
+      </footer>
     </div>
   );
 };

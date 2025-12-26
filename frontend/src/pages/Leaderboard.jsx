@@ -52,11 +52,6 @@ const Leaderboard = () => {
 
   return (
     <AppShell
-      brandIcon={(
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning to-warning/70 flex items-center justify-center">
-          <Trophy className="w-6 h-6 text-bg" />
-        </div>
-      )}
       brandTitle="Mentara"
       brandSubtitle="Leaderboard"
       nav={<StudentNav active="leaderboard" />}

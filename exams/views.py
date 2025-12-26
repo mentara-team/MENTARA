@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response as DRFResponse
+from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
@@ -9,9 +10,9 @@ from django.utils import timezone
 import random
 from datetime import timedelta
 
-from .models import Topic, Question, Exam, ExamQuestion, Attempt, Response, LeaderboardEntry
+from .models import Curriculum, Topic, Question, Exam, ExamQuestion, Attempt, Response, LeaderboardEntry
 from django.core.mail import send_mail
-from .serializers import TopicSerializer, QuestionSerializer, ExamSerializer, AttemptSerializer, ResponseSerializer
+from .serializers import CurriculumSerializer, TopicSerializer, QuestionSerializer, ExamSerializer, AttemptSerializer, ResponseSerializer
 
 class IsAdminOrTeacher(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -36,10 +37,31 @@ def _is_teacher_or_admin(user):
 class TopicViewSet(viewsets.ModelViewSet):
     queryset = Topic.objects.filter(is_active=True)
     serializer_class = TopicSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('curriculum', 'parent')
+        curriculum_id = self.request.query_params.get('curriculum')
+        if curriculum_id:
+            qs = qs.filter(curriculum_id=curriculum_id)
+        parent_id = self.request.query_params.get('parent')
+        if parent_id is not None:
+            if parent_id == '' or parent_id.lower() == 'null':
+                qs = qs.filter(parent__isnull=True)
+            else:
+                qs = qs.filter(parent_id=parent_id)
+        return qs
+
     def get_permissions(self):
         if self.request.method in ('GET','HEAD','OPTIONS'):
             return [permissions.AllowAny()]
         return [IsAdminOrTeacher()]
+
+    def perform_create(self, serializer):
+        # Enforce the requested rule: Topics must belong to a Curriculum.
+        curriculum = serializer.validated_data.get('curriculum')
+        if curriculum is None:
+            raise ValidationError({'curriculum': 'This field is required.'})
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -102,10 +124,54 @@ class QuestionViewSet(viewsets.ModelViewSet):
 class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.filter(is_active=True)
     serializer_class = ExamSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('topic', 'topic__curriculum')
+        qp = self.request.query_params
+
+        topic_id = qp.get('topic')
+        if topic_id:
+            qs = qs.filter(topic_id=topic_id)
+
+        curriculum_id = qp.get('curriculum')
+        if curriculum_id:
+            qs = qs.filter(topic__curriculum_id=curriculum_id)
+
+        level = qp.get('level')
+        if level:
+            qs = qs.filter(level__iexact=level)
+
+        paper_number = qp.get('paper_number')
+        if paper_number:
+            try:
+                qs = qs.filter(paper_number=int(paper_number))
+            except Exception:
+                pass
+
+        return qs
+
     def get_permissions(self):
         if self.request.method in ('GET','HEAD','OPTIONS'):
             return [permissions.AllowAny()]
         return [IsAdminOrTeacher()]
+
+
+class CurriculumViewSet(viewsets.ModelViewSet):
+    queryset = Curriculum.objects.filter(is_active=True)
+    serializer_class = CurriculumSerializer
+
+    def get_permissions(self):
+        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return [permissions.AllowAny()]
+        return [IsAdminOrTeacher()]
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def tree(self, request, pk=None):
+        """Return folder-like navigation: top-level topics for this curriculum, with nested children."""
+        curriculum = self.get_object()
+        roots = Topic.objects.filter(is_active=True, curriculum=curriculum, parent__isnull=True).select_related('curriculum')
+        data = TopicSerializer(roots, many=True).data
+        return DRFResponse({'curriculum': CurriculumSerializer(curriculum).data, 'roots': data})
 
 class AttemptViewSet(viewsets.ModelViewSet):
     queryset = Attempt.objects.all()
@@ -113,10 +179,44 @@ class AttemptViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related('user', 'exam')
-        if _is_teacher_or_admin(self.request.user):
-            return qs
-        return qs.filter(user=self.request.user)
+        qs = super().get_queryset().select_related('user', 'exam', 'exam__topic', 'exam__topic__curriculum')
+        qp = self.request.query_params
+
+        # Non-admin/teacher can only see their attempts.
+        if not _is_teacher_or_admin(self.request.user):
+            qs = qs.filter(user=self.request.user)
+
+        topic_id = qp.get('topic')
+        if topic_id:
+            qs = qs.filter(exam__topic_id=topic_id)
+
+        curriculum_id = qp.get('curriculum')
+        if curriculum_id:
+            qs = qs.filter(exam__topic__curriculum_id=curriculum_id)
+
+        level = qp.get('level')
+        if level:
+            qs = qs.filter(exam__level__iexact=level)
+
+        paper_number = qp.get('paper_number')
+        if paper_number:
+            try:
+                qs = qs.filter(exam__paper_number=int(paper_number))
+            except Exception:
+                pass
+
+        # Convenience: completed=1 returns submitted + timedout (i.e., "appeared")
+        completed = (qp.get('completed') or '').strip().lower()
+        if completed in ('1', 'true', 'yes'):
+            qs = qs.filter(status__in=['submitted', 'timedout'])
+
+        status_param = (qp.get('status') or '').strip()
+        if status_param:
+            statuses = [s.strip() for s in status_param.split(',') if s.strip()]
+            if statuses:
+                qs = qs.filter(status__in=statuses)
+
+        return qs
 
 class ResponseViewSet(viewsets.ModelViewSet):
     queryset = Response.objects.all()

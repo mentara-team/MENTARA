@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 const AuthShell = ({
   title,
@@ -26,8 +26,13 @@ const AuthShell = ({
         <div className="hidden lg:flex flex-col justify-between p-10 xl:p-14">
           <div>
             <Link to="/" className="inline-flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-mentara-cyan to-mentara-teal rounded-mentara-sm flex items-center justify-center">
-                <Sparkles className="w-7 h-7 text-mentara-dark" />
+              <div className="w-14 h-14 flex items-center justify-center">
+                <img
+                  src="/branding/mentara-logo-transparent.png"
+                  alt="Mentara logo"
+                  className="h-12 w-auto object-contain drop-shadow-sm"
+                  draggable="false"
+                />
               </div>
               <div>
                 <div className="text-2xl font-bold text-gradient">{sideTitle}</div>
@@ -72,8 +77,13 @@ const AuthShell = ({
             {/* Mobile logo */}
             <div className="lg:hidden text-center mb-6">
               <Link to="/" className="inline-flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-mentara-cyan to-mentara-teal rounded-mentara-sm flex items-center justify-center">
-                  <Sparkles className="w-7 h-7 text-mentara-dark" />
+                <div className="w-14 h-14 flex items-center justify-center">
+                  <img
+                    src="/branding/mentara-logo-transparent.png"
+                    alt="Mentara logo"
+                    className="h-12 w-auto object-contain drop-shadow-sm"
+                    draggable="false"
+                  />
                 </div>
                 <span className="text-3xl font-bold text-gradient">Mentara</span>
               </Link>

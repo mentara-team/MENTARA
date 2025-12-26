@@ -19,6 +19,8 @@ import { toast } from 'react-hot-toast';
 
 const TopicManager = () => {
   const [topics, setTopics] = useState([]);
+  const [curriculums, setCurriculums] = useState([]);
+  const [selectedCurriculumId, setSelectedCurriculumId] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTopics, setExpandedTopics] = useState(new Set());
@@ -29,18 +31,41 @@ const TopicManager = () => {
     name: '',
     description: '',
     icon: '📚',
-    parent: null
+    parent: null,
+    curriculum: null
   });
 
   useEffect(() => {
-    fetchTopics();
+    fetchCurriculums();
   }, []);
+
+  useEffect(() => {
+    fetchTopics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCurriculumId]);
+
+  const fetchCurriculums = async () => {
+    try {
+      const response = await api.get('curriculums/');
+      const data = response?.data;
+      const list = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+      setCurriculums(list);
+      if (list.length > 0) {
+        setSelectedCurriculumId(String(list[0].id));
+      }
+    } catch (error) {
+      console.error('Failed to fetch curriculums:', error);
+      setCurriculums([]);
+    }
+  };
 
   const fetchTopics = async () => {
     try {
       setLoading(true);
-      const response = await api.get('topics/');
-      setTopics(response.data);
+      const response = await api.get('topics/', {
+        params: selectedCurriculumId ? { curriculum: selectedCurriculumId } : {},
+      });
+      setTopics(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to fetch topics:', error);
       toast.error('Failed to load topics');
@@ -52,10 +77,14 @@ const TopicManager = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await api.post('topics/', formData);
+      const payload = {
+        ...formData,
+        curriculum: selectedCurriculumId ? Number(selectedCurriculumId) : formData.curriculum,
+      };
+      await api.post('topics/', payload);
       toast.success('Topic created successfully!');
       setShowCreateModal(false);
-      setFormData({ name: '', description: '', icon: '📚', parent: null });
+      setFormData({ name: '', description: '', icon: '📚', parent: null, curriculum: null });
       fetchTopics();
     } catch (error) {
       console.error('Failed to create topic:', error);
@@ -70,7 +99,11 @@ const TopicManager = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`topics/${selectedTopic.id}/`, formData);
+      const payload = {
+        ...formData,
+        curriculum: selectedCurriculumId ? Number(selectedCurriculumId) : formData.curriculum,
+      };
+      await api.put(`topics/${selectedTopic.id}/`, payload);
       toast.success('Topic updated successfully!');
       setShowEditModal(false);
       setSelectedTopic(null);
@@ -109,7 +142,8 @@ const TopicManager = () => {
       name: topic.name,
       description: topic.description || '',
       icon: topic.icon || '📚',
-      parent: topic.parent ?? topic.parent_id ?? null
+      parent: topic.parent ?? topic.parent_id ?? null,
+      curriculum: topic.curriculum ?? topic.curriculum_id ?? null,
     });
     setShowEditModal(true);
   };
@@ -253,13 +287,30 @@ const TopicManager = () => {
         </div>
         
         <div className="flex gap-3">
+          <select
+            value={selectedCurriculumId}
+            onChange={(e) => setSelectedCurriculumId(e.target.value)}
+            className="input"
+            disabled={curriculums.length === 0}
+            aria-label="Select curriculum"
+          >
+            {curriculums.length === 0 ? (
+              <option value="">No curriculums</option>
+            ) : (
+              curriculums.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))
+            )}
+          </select>
           <button className="btn-outline">
             <Filter className="w-4 h-4" />
             Filter
           </button>
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', icon: '📚', parent: null });
+              setFormData({ name: '', description: '', icon: '📚', parent: null, curriculum: null });
               setShowCreateModal(true);
             }}
             className="btn-primary"

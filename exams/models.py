@@ -8,16 +8,48 @@ class TimeStamped(models.Model):
     class Meta:
         abstract = True
 
+
+class Curriculum(TimeStamped):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        indexes = [models.Index(fields=['is_active', 'order'])]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
 class Topic(TimeStamped):
     name = models.CharField(max_length=160)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=120, blank=True)
+    curriculum = models.ForeignKey(
+        Curriculum,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='topics',
+    )
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     class Meta:
-        indexes = [models.Index(fields=['parent','order'])]
-        ordering = ['parent__id','order','name']
+        indexes = [
+            models.Index(fields=['curriculum', 'parent', 'order']),
+            models.Index(fields=['parent', 'order']),
+        ]
+        ordering = ['curriculum__id', 'parent__id', 'order', 'name']
     def __str__(self):
         return self.name
 
@@ -51,6 +83,8 @@ class Exam(TimeStamped):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     topic = models.ForeignKey(Topic, on_delete=models.PROTECT, related_name='exams')
+    level = models.CharField(max_length=10, blank=True, default='')  # HL/SL or blank
+    paper_number = models.PositiveSmallIntegerField(null=True, blank=True)  # 1/2/3 or null
     duration_seconds = models.PositiveIntegerField(default=3600)
     total_marks = models.FloatField(default=0)
     passing_marks = models.FloatField(default=40)

@@ -5,7 +5,7 @@ Usage: python manage.py seed_demo_data
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from exams.models import Topic, Exam, Question, Attempt, Response
+from exams.models import Curriculum, Topic, Exam, Question, Attempt, Response
 from accounts.models import CustomUser
 import random
 from datetime import datetime, timedelta
@@ -87,6 +87,8 @@ class Command(BaseCommand):
 
     def create_topics(self):
         self.stdout.write('Creating topics...')
+
+        curriculum, _ = Curriculum.objects.get_or_create(name='IB', defaults={'order': 0})
         
         topics_data = [
             ('Mechanics', 'Forces, motion, energy, and momentum'),
@@ -100,10 +102,13 @@ class Command(BaseCommand):
         ]
         
         for name, description in topics_data:
-            Topic.objects.get_or_create(
+            topic, _ = Topic.objects.get_or_create(
                 name=name,
-                defaults={'description': description}
+                defaults={'description': description, 'curriculum': curriculum}
             )
+            if topic.curriculum_id is None:
+                topic.curriculum = curriculum
+                topic.save(update_fields=['curriculum'])
         
         self.stdout.write(self.style.SUCCESS(f'   ✓ Created {len(topics_data)} topics'))
 

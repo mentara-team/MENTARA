@@ -94,6 +94,8 @@ const ExamManagerNew = () => {
     title: '',
     description: '',
     topic: '',
+    level: '',
+    paper_number: '',
     duration_minutes: 60,
     total_marks: 100,
     passing_marks: 40,
@@ -166,6 +168,10 @@ const ExamManagerNew = () => {
     const minutes = Number(data.duration_minutes || 0);
     const duration_seconds = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : 3600;
 
+    const paperNumberRaw = data.paper_number;
+    const paperNumberParsed = Number.parseInt(String(paperNumberRaw), 10);
+    const paper_number = Number.isFinite(paperNumberParsed) ? paperNumberParsed : null;
+
     // UI `status` is mapped onto backend (visibility, is_active). Backend doesn't persist `status`/`scheduled_date`.
     let is_active = true;
     let visibility = 'PUBLIC';
@@ -193,6 +199,8 @@ const ExamManagerNew = () => {
       title: data.title,
       description: data.description,
       topic: data.topic,
+      level: data.level || null,
+      paper_number,
       duration_seconds,
       total_marks: data.total_marks,
       passing_marks: data.passing_marks,
@@ -258,6 +266,8 @@ const ExamManagerNew = () => {
         title: `${exam.title} (Copy)`,
         description: exam.description || '',
         topic: exam.topic,
+        level: exam.level || null,
+        paper_number: exam.paper_number ?? null,
         duration_seconds:
           exam.duration_seconds != null
             ? exam.duration_seconds
@@ -302,6 +312,8 @@ const ExamManagerNew = () => {
       title: exam.title,
       description: exam.description || '',
       topic: exam.topic || '',
+      level: exam.level || '',
+      paper_number: exam.paper_number ?? '',
       duration_minutes: exam.duration_minutes,
       total_marks: exam.total_marks,
       passing_marks: exam.passing_marks,
@@ -336,6 +348,8 @@ const ExamManagerNew = () => {
       title: '',
       description: '',
       topic: '',
+      level: '',
+      paper_number: '',
       duration_minutes: 60,
       total_marks: 100,
       passing_marks: 40,
@@ -675,6 +689,37 @@ const ExamManagerNew = () => {
               {topics.map((topic) => (
                 <option key={topic.id} value={topic.id}>{topic.name}</option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Level (HL/SL)
+            </label>
+            <select
+              value={formData.level}
+              onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            >
+              <option value="">Not set</option>
+              <option value="HL">HL</option>
+              <option value="SL">SL</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Paper (1/2/3)
+            </label>
+            <select
+              value={formData.paper_number}
+              onChange={(e) => setFormData({ ...formData, paper_number: e.target.value })}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            >
+              <option value="">Not set</option>
+              <option value="1">Paper 1</option>
+              <option value="2">Paper 2</option>
+              <option value="3">Paper 3</option>
             </select>
           </div>
 

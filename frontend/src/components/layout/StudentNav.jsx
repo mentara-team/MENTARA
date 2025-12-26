@@ -21,6 +21,7 @@ export default function StudentNav({ active = 'dashboard' }) {
   return (
     <nav className="hidden md:flex items-center gap-2 bg-surface/40 border border-elevated/50 rounded-2xl p-1">
       {item('dashboard', '/dashboard', 'Dashboard')}
+      {item('library', '/library', 'Library')}
       {item('exams', '/exams', 'Tests')}
       {item('leaderboard', '/leaderboard', 'Leaderboard')}
     </nav>

@@ -181,6 +181,14 @@ export const topicsAPI = {
 };
 
 // ===================
+// Curriculums API
+// ===================
+export const curriculumsAPI = {
+  getCurriculums: (params = {}) => api.get('curriculums/', { params }),
+  getCurriculumTree: (id) => api.get(`curriculums/${id}/tree/`),
+};
+
+// ===================
 // Attempts API
 // ===================
 export const attemptsAPI = {
@@ -294,6 +302,9 @@ api.getTopics = topicsAPI.getTopics;
 api.getTopic = topicsAPI.getTopic;
 api.createTopic = topicsAPI.createTopic;
 api.updateTopic = topicsAPI.updateTopic;
+
+api.getCurriculums = curriculumsAPI.getCurriculums;
+api.getCurriculumTree = curriculumsAPI.getCurriculumTree;
 
 api.getMyAttempts = attemptsAPI.getMyAttempts;
 api.getAttempt = attemptsAPI.getAttempt;

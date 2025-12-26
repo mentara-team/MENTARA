@@ -207,28 +207,110 @@ const Modal = ({ show, onClose, onSubmit, title, children }) => (
 
 const TopicManagerNew = () => {
   const [topics, setTopics] = useState([]);
+  const [curriculums, setCurriculums] = useState([]);
+  const [selectedCurriculumId, setSelectedCurriculumId] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTopics, setExpandedTopics] = useState(new Set());
+  const [showCreateCurriculumModal, setShowCreateCurriculumModal] = useState(false);
+  const [showScaffoldModal, setShowScaffoldModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [curriculumForm, setCurriculumForm] = useState({ name: '', description: '' });
+  const [scaffoldForm, setScaffoldForm] = useState({ subject_name: '' });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     icon: '📚',
-    parent: null
+    parent: null,
+    curriculum: null
   });
+
+  const parentOptions = useMemo(() => {
+    const map = new Map();
+    const roots = [];
+    topics.forEach((t) => map.set(t.id, { ...t, children: [] }));
+    topics.forEach((t) => {
+      const parentId = t.parent_id ?? t.parent;
+      const node = map.get(t.id);
+      if (!node) return;
+      if (parentId && map.has(parentId)) {
+        map.get(parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    const result = [];
+    const walk = (node, depth) => {
+      const prefix = depth > 0 ? `${'—'.repeat(Math.min(depth, 6))} ` : '';
+      result.push({ id: node.id, label: `${prefix}${node.name}` });
+      const kids = Array.isArray(node.children) ? node.children : [];
+      kids.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.name).localeCompare(String(b.name)));
+      kids.forEach((c) => walk(c, depth + 1));
+    };
+    roots
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.name).localeCompare(String(b.name)))
+      .forEach((r) => walk(r, 0));
+    return result;
+  }, [topics]);
+
+  useEffect(() => {
+    fetchCurriculums();
+  }, []);
 
   useEffect(() => {
     fetchTopics();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCurriculumId]);
+
+  const fetchCurriculums = async () => {
+    try {
+      const response = await api.get('curriculums/');
+      const data = response?.data;
+      const list = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+      setCurriculums(list);
+      if (list.length > 0) {
+        setSelectedCurriculumId(String(list[0].id));
+      }
+    } catch (error) {
+      console.error('Failed to fetch curriculums:', error);
+      setCurriculums([]);
+    }
+  };
+
+  const handleCreateCurriculum = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: curriculumForm.name,
+        description: curriculumForm.description,
+        is_active: true,
+      };
+      const res = await api.post('curriculums/', payload);
+      toast.success('✨ Curriculum created successfully!');
+      setShowCreateCurriculumModal(false);
+      setCurriculumForm({ name: '', description: '' });
+      await fetchCurriculums();
+      const newId = res?.data?.id;
+      if (newId) setSelectedCurriculumId(String(newId));
+    } catch (error) {
+      console.error('Failed to create curriculum:', error);
+      const data = error.response?.data;
+      const detail = data?.detail || (data ? JSON.stringify(data) : null);
+      toast.error(detail || 'Failed to create curriculum');
+    }
+  };
 
   const fetchTopics = async () => {
     try {
       setLoading(true);
-      const response = await api.get('topics/');
-      setTopics(response.data);
+      const response = await api.get('topics/', {
+        params: selectedCurriculumId ? { curriculum: selectedCurriculumId } : {},
+      });
+      setTopics(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to fetch topics:', error);
       toast.error('Failed to load topics');
@@ -240,10 +322,14 @@ const TopicManagerNew = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await api.post('topics/', formData);
+      const payload = {
+        ...formData,
+        curriculum: selectedCurriculumId ? Number(selectedCurriculumId) : formData.curriculum,
+      };
+      await api.post('topics/', payload);
       toast.success('✨ Topic created successfully!');
       setShowCreateModal(false);
-      setFormData({ name: '', description: '', icon: '📚', parent: null });
+      setFormData({ name: '', description: '', icon: '📚', parent: null, curriculum: null });
       fetchTopics();
     } catch (error) {
       console.error('Failed to create topic:', error);
@@ -252,6 +338,73 @@ const TopicManagerNew = () => {
           error.response?.data?.error ||
           'Failed to create topic'
       );
+    }
+  };
+
+  const handleScaffoldIb = async (e) => {
+    e.preventDefault();
+    if (!selectedCurriculumId) {
+      toast.error('Please create/select a curriculum first');
+      return;
+    }
+    const subject = scaffoldForm.subject_name.trim();
+    if (!subject) {
+      toast.error('Enter a subject name');
+      return;
+    }
+
+    const curriculumId = Number(selectedCurriculumId);
+    try {
+      toast.loading('Creating IB structure…', { id: 'scaffold' });
+
+      const subjectRes = await api.post('topics/', {
+        name: subject,
+        description: '',
+        icon: '📘',
+        parent: null,
+        curriculum: curriculumId,
+        order: 0,
+      });
+      const subjectId = subjectRes?.data?.id;
+
+      const slRes = await api.post('topics/', {
+        name: 'SL',
+        description: 'Standard Level',
+        icon: '🟦',
+        parent: subjectId,
+        curriculum: curriculumId,
+        order: 1,
+      });
+      const hlRes = await api.post('topics/', {
+        name: 'HL',
+        description: 'Higher Level',
+        icon: '🟥',
+        parent: subjectId,
+        curriculum: curriculumId,
+        order: 2,
+      });
+
+      const slId = slRes?.data?.id;
+      const hlId = hlRes?.data?.id;
+
+      const createPapers = async (parentId) => {
+        await api.post('topics/', { name: 'Paper 1', description: '', icon: '📄', parent: parentId, curriculum: curriculumId, order: 1 });
+        await api.post('topics/', { name: 'Paper 2', description: '', icon: '📄', parent: parentId, curriculum: curriculumId, order: 2 });
+        await api.post('topics/', { name: 'Paper 3', description: '', icon: '📄', parent: parentId, curriculum: curriculumId, order: 3 });
+      };
+
+      if (slId) await createPapers(slId);
+      if (hlId) await createPapers(hlId);
+
+      toast.success('✅ IB structure created (Subject → SL/HL → Papers)', { id: 'scaffold' });
+      setShowScaffoldModal(false);
+      setScaffoldForm({ subject_name: '' });
+      fetchTopics();
+    } catch (error) {
+      console.error('Failed to scaffold IB structure:', error);
+      const data = error.response?.data;
+      const detail = data?.detail || (data ? JSON.stringify(data) : null);
+      toast.error(detail || 'Failed to create IB structure', { id: 'scaffold' });
     }
   };
 
@@ -297,7 +450,8 @@ const TopicManagerNew = () => {
       name: topic.name,
       description: topic.description || '',
       icon: topic.icon || '📚',
-      parent: topic.parent ?? topic.parent_id ?? null
+      parent: topic.parent ?? topic.parent_id ?? null,
+      curriculum: topic.curriculum ?? topic.curriculum_id ?? null,
     });
     setShowEditModal(true);
   }, []);
@@ -325,15 +479,57 @@ const TopicManagerNew = () => {
           </h1>
           <p className="text-gray-400 mt-1">Organize your content hierarchy</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowCreateModal(true)}
-          className="btn-premium"
-        >
-          <Plus className="w-5 h-5 inline mr-2" />
-          Create Topic
-        </motion.button>
+
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowCreateCurriculumModal(true)}
+            className="px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
+          >
+            + Curriculum
+          </motion.button>
+
+          <select
+            value={selectedCurriculumId}
+            onChange={(e) => setSelectedCurriculumId(e.target.value)}
+            className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            disabled={curriculums.length === 0}
+            aria-label="Select curriculum"
+          >
+            {curriculums.length === 0 ? (
+              <option value="">No curriculums</option>
+            ) : (
+              curriculums.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))
+            )}
+          </select>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowCreateModal(true)}
+            className="btn-premium"
+          >
+            <Plus className="w-5 h-5 inline mr-2" />
+            Create Topic
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowScaffoldModal(true)}
+            className="px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
+            disabled={!selectedCurriculumId}
+            title={!selectedCurriculumId ? 'Select a curriculum first' : 'Quickly create IB subject → SL/HL → Paper 1/2/3'}
+          >
+            <FolderPlus className="w-5 h-5 inline mr-2" />
+            Quick IB
+          </motion.button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -405,15 +601,79 @@ const TopicManagerNew = () => {
         <div>
           <label className="block text-sm font-semibold text-gray-300 mb-2">Parent Topic (Optional)</label>
           <select
-            value={formData.parent_id || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, parent_id: e.target.value || null }))}
+            value={formData.parent || ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, parent: e.target.value ? Number(e.target.value) : null }))}
             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
           >
             <option value="">No Parent (Root Topic)</option>
-            {topics.filter(t => !t.parent_id).map(topic => (
-              <option key={topic.id} value={topic.id}>{topic.name}</option>
+            {parentOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
             ))}
           </select>
+        </div>
+      </Modal>
+
+      {/* Quick IB Scaffold Modal */}
+      <Modal
+        show={showScaffoldModal}
+        onClose={() => setShowScaffoldModal(false)}
+        onSubmit={handleScaffoldIb}
+        title="Quick IB Structure"
+      >
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-purple-400 mt-0.5" />
+            <div>
+              <div className="text-white font-semibold">Creates folders automatically</div>
+              <div className="text-sm text-gray-400 mt-1">
+                Subject → SL + HL → Paper 1 / Paper 2 / Paper 3
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">Subject Name *</label>
+          <input
+            type="text"
+            required
+            value={scaffoldForm.subject_name}
+            onChange={(e) => setScaffoldForm((prev) => ({ ...prev, subject_name: e.target.value }))}
+            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            placeholder="e.g., IB Physics"
+          />
+        </div>
+      </Modal>
+
+      {/* Create Curriculum Modal */}
+      <Modal
+        show={showCreateCurriculumModal}
+        onClose={() => setShowCreateCurriculumModal(false)}
+        onSubmit={handleCreateCurriculum}
+        title="Create Curriculum"
+      >
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">Curriculum Name *</label>
+          <input
+            type="text"
+            required
+            value={curriculumForm.name}
+            onChange={(e) => setCurriculumForm((prev) => ({ ...prev, name: e.target.value }))}
+            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+            placeholder="e.g., IB"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">Description</label>
+          <textarea
+            value={curriculumForm.description}
+            onChange={(e) => setCurriculumForm((prev) => ({ ...prev, description: e.target.value }))}
+            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
+            rows="3"
+            placeholder="Optional"
+          />
         </div>
       </Modal>
 
