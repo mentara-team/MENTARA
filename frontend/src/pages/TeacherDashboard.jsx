@@ -541,9 +541,9 @@ function TeacherDashboard() {
                   Attempts by Paper
                 </h2>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="w-full sm:w-auto grid grid-cols-1 sm:flex sm:items-center gap-2">
                   <select
-                    className="input text-sm min-w-[220px]"
+                    className="input text-sm w-full sm:w-auto sm:min-w-[220px]"
                     value={selectedCurriculumId}
                     onChange={(e) => setSelectedCurriculumId(e.target.value)}
                     aria-label="Select curriculum"
@@ -559,7 +559,7 @@ function TeacherDashboard() {
                   {selectedIsIb && (
                     <>
                       <select
-                        className="input text-sm min-w-[140px]"
+                        className="input text-sm w-full sm:w-auto sm:min-w-[140px]"
                         value={paperFilters.level}
                         onChange={(e) => setPaperFilters((p) => ({ ...p, level: e.target.value }))}
                         aria-label="Select level"
@@ -570,7 +570,7 @@ function TeacherDashboard() {
                       </select>
 
                       <select
-                        className="input text-sm min-w-[160px]"
+                        className="input text-sm w-full sm:w-auto sm:min-w-[160px]"
                         value={paperFilters.paper_number}
                         onChange={(e) => setPaperFilters((p) => ({ ...p, paper_number: e.target.value }))}
                         aria-label="Select paper number"
@@ -614,12 +614,16 @@ function TeacherDashboard() {
                 <div>
                   <div className="text-xs text-text-secondary mb-2">Students who appeared (completed attempts)</div>
                   <div className="rounded-xl border border-elevated/50 bg-surface/30 overflow-hidden">
-                    <div className="grid grid-cols-12 gap-3 px-4 py-2 bg-surface/40 border-b border-elevated/50 text-xs text-text-secondary">
-                      <div className="col-span-7">Student</div>
-                      <div className="col-span-2 text-right">Attempts</div>
-                      <div className="col-span-3 text-right">Last</div>
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[520px]">
+                        <div className="grid grid-cols-12 gap-3 px-4 py-2 bg-surface/40 border-b border-elevated/50 text-xs text-text-secondary">
+                          <div className="col-span-7">Student</div>
+                          <div className="col-span-2 text-right">Attempts</div>
+                          <div className="col-span-3 text-right">Last</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="max-h-[320px] overflow-auto">
+                    <div className="max-h-[320px] overflow-auto overflow-x-auto">
                       {!selectedTopic?.id && (
                         <div className="text-sm text-text-secondary p-4">Select a folder to see students.</div>
                       )}
@@ -633,7 +637,7 @@ function TeacherDashboard() {
                       )}
 
                       {selectedTopic?.id && !paperAttemptsLoading && paperAttemptRows.length > 0 && (
-                        <div className="divide-y divide-elevated/50">
+                        <div className="min-w-[520px] divide-y divide-elevated/50">
                           {paperAttemptRows.map((row, idx) => (
                             <div
                               key={idx}

@@ -285,7 +285,7 @@ const AdminDashboardNew = () => {
         animate={{ y: 0 }}
         className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/10"
       >
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -345,13 +345,22 @@ const AdminDashboardNew = () => {
         {/* Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
-            <motion.aside
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
-              transition={{ type: 'spring', damping: 25 }}
-              className="fixed left-0 top-20 bottom-0 w-72 glass-card border-r border-white/10 p-6 overflow-y-auto z-40"
-            >
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 top-20 bg-black/40 z-30 lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+              />
+
+              <motion.aside
+                initial={{ x: -300 }}
+                animate={{ x: 0 }}
+                exit={{ x: -300 }}
+                transition={{ type: 'spring', damping: 25 }}
+                className="fixed left-0 top-20 bottom-0 w-72 max-w-[85vw] glass-card border-r border-white/10 p-4 sm:p-6 overflow-y-auto z-40"
+              >
               <div className="space-y-2">
                 {menuItems.map((item, idx) => (
                   <motion.button
@@ -385,12 +394,13 @@ const AdminDashboardNew = () => {
                 <X className="w-5 h-5" />
                 <span className="font-semibold">Logout</span>
               </motion.button>
-            </motion.aside>
+              </motion.aside>
+            </>
           )}
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className={`flex-1 p-6 transition-all ${sidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
+        <main className={`flex-1 p-4 sm:p-6 transition-all ${sidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}
