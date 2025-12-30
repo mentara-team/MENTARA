@@ -7,7 +7,7 @@ import AppShell from '../components/layout/AppShell';
 import TeacherNav from '../components/layout/TeacherNav';
 import ThemeToggle from '../components/ui/ThemeToggle';
 
-const BASE_API = (import.meta.env.VITE_BASE_API || import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
+const BASE_API = (import.meta.env.VITE_BASE_API || import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const getToken = () => localStorage.getItem('access_token');
 const authHeaders = () => ({ 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
 
@@ -197,7 +197,7 @@ function TeacherDashboard() {
     try {
       const [examsRes, attemptsRes, studentsRes, summaryRes] = await Promise.all([
         fetch(`${BASE_API}/exams/`, { headers: authHeaders() }),
-        fetch(`${BASE_API}/attempts/`, { headers: authHeaders() }),
+        fetch(`${BASE_API}/attempts/?completed=1&needs_grading=1`, { headers: authHeaders() }),
         fetch(`${BASE_API}/users/`, { headers: authHeaders() }),
         fetch(`${BASE_API}/analytics/exams/summary/`, { headers: authHeaders() })
       ]);
@@ -214,8 +214,8 @@ function TeacherDashboard() {
 
       setExams(examsList);
 
-      // Filter for submissions that need grading (structured questions)
-      const needsGrading = attemptsList.filter((a) => a && a.status === 'submitted');
+      // Attempts that still have STRUCT responses without teacher_mark.
+      const needsGrading = attemptsList;
       setSubmissions(needsGrading);
 
       setStudents(studentsList);

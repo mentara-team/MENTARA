@@ -53,8 +53,15 @@ function GradingPage() {
         toast.error('Missing response id; please refresh the page.');
         return;
       }
+
+      const raw = marks[questionId];
+      const normalized = raw === '' || raw === null || raw === undefined ? null : Number(raw);
+      if (normalized !== null && Number.isNaN(normalized)) {
+        toast.error('Teacher mark must be a number');
+        return;
+      }
       await api.post(`responses/${responseId}/grade/`, {
-        teacher_mark: marks[questionId],
+        teacher_mark: normalized,
         remarks: remarks[questionId],
       });
       toast.success('Saved grade');

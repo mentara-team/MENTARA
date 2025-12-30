@@ -244,6 +244,15 @@ class AttemptViewSet(viewsets.ModelViewSet):
             if statuses:
                 qs = qs.filter(status__in=statuses)
 
+        # needs_grading=1 returns attempts that still have at least one STRUCT response
+        # without a teacher_mark.
+        needs_grading = (qp.get('needs_grading') or '').strip().lower()
+        if needs_grading in ('1', 'true', 'yes'):
+            qs = qs.filter(
+                responses__question__type='STRUCT',
+                responses__teacher_mark__isnull=True,
+            ).distinct()
+
         return qs
 
 class ResponseViewSet(viewsets.ModelViewSet):
@@ -724,7 +733,14 @@ def grade_response(request, response_id):
     remarks = request.data.get('remarks', '')
     
     if teacher_mark is not None:
-        resp.teacher_mark = float(teacher_mark)
+        # Accept number or numeric-string. Empty string should behave like "not provided".
+        if isinstance(teacher_mark, str) and teacher_mark.strip() == '':
+            teacher_mark = None
+        if teacher_mark is not None:
+            try:
+                resp.teacher_mark = float(teacher_mark)
+            except Exception:
+                return DRFResponse({'detail': 'Invalid teacher_mark. Must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Store remarks in attempt metadata
     attempt = resp.attempt

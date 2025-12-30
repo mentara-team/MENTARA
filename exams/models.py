@@ -126,8 +126,10 @@ class Attempt(TimeStamped):
     
     def calculate_score(self):
         """Calculate total score from responses"""
-        total = sum(r.teacher_mark or (r.question.marks if r.correct else 0) 
-                   for r in self.responses.all())
+        total = sum(
+            (r.teacher_mark if r.teacher_mark is not None else (r.question.marks if r.correct else 0))
+            for r in self.responses.all()
+        )
         self.total_score = total
         if self.exam.total_marks > 0:
             self.percentage = (total / self.exam.total_marks) * 100
