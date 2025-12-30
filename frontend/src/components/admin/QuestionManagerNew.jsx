@@ -76,7 +76,8 @@ const QuestionManagerNew = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [filterTopic, setFilterTopic] = useState('all');
+  const [filterTopic, setFilterTopic] = useState('');
+  const [filterTopicMeta, setFilterTopicMeta] = useState({ pathLabel: '' });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
@@ -100,6 +101,70 @@ const QuestionManagerNew = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const topicById = React.useMemo(() => {
+    const m = new Map();
+    (topics || []).forEach((t) => {
+      if (t?.id != null) m.set(String(t.id), t);
+    });
+    return m;
+  }, [topics]);
+
+  const topicPathById = React.useMemo(() => {
+    const out = new Map();
+
+    const build = (topicId) => {
+      const id = String(topicId);
+      if (out.has(id)) return out.get(id);
+      const node = topicById.get(id);
+      if (!node) {
+        out.set(id, null);
+        return null;
+      }
+
+      const parts = [];
+      const curriculumName = node?.curriculum_name ? String(node.curriculum_name) : '';
+
+      let cur = node;
+      let guard = 0;
+      while (cur && guard < 50) {
+        parts.unshift(cur?.name || '');
+        const parentId = cur?.parent_id ?? cur?.parent;
+        if (!parentId) break;
+        cur = topicById.get(String(parentId));
+        guard += 1;
+      }
+
+      const label = parts.filter(Boolean).join(' → ');
+      const full = curriculumName ? `${curriculumName} • ${label}` : label;
+      out.set(id, full || null);
+      return out.get(id);
+    };
+
+    (topics || []).forEach((t) => {
+      if (t?.id != null) build(t.id);
+    });
+    return out;
+  }, [topics, topicById]);
+
+  const isTopicInSubtree = React.useCallback(
+    (topicId, ancestorId) => {
+      if (!ancestorId) return true;
+      if (!topicId) return false;
+      let curId = String(topicId);
+      const anc = String(ancestorId);
+      let guard = 0;
+      while (curId && guard < 50) {
+        if (curId === anc) return true;
+        const node = topicById.get(curId);
+        const parentId = node?.parent_id ?? node?.parent;
+        curId = parentId ? String(parentId) : '';
+        guard += 1;
+      }
+      return false;
+    },
+    [topicById]
+  );
 
   const uiTypeFromBackend = (backendType) => {
     switch (backendType) {
@@ -412,8 +477,7 @@ const QuestionManagerNew = () => {
     const matchesDifficulty = filterDifficulty === 'all' || (q?.difficulty ?? '') === filterDifficulty;
     const matchesType = filterType === 'all' || (q?.question_type ?? q?.type ?? '') === filterType;
     const matchesTopic =
-      filterTopic === 'all' ||
-      (q?.topic != null && q.topic === parseInt(filterTopic));
+      !filterTopic || isTopicInSubtree(q?.topic, filterTopic);
     return matchesSearch && matchesDifficulty && matchesType && matchesTopic;
   });
 
@@ -527,16 +591,30 @@ const QuestionManagerNew = () => {
           </div>
         </div>
         <div className="mt-4">
-          <select
-            value={filterTopic}
-            onChange={(e) => setFilterTopic(e.target.value)}
-            className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-          >
-            <option value="all">All Topics</option>
-            {topics.map(topic => (
-              <option key={topic.id} value={topic.id}>{topic.name}</option>
-            ))}
-          </select>
+          <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div className="text-sm font-semibold text-gray-300 mb-2">Filter by Path</div>
+            <HierarchyTopicSelector
+              value={filterTopic}
+              onChange={(topicId) => setFilterTopic(topicId)}
+              onMetaChange={(meta) => setFilterTopicMeta(meta)}
+              selectClassName="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+              labelClassName="block text-xs font-semibold text-gray-400 mb-2"
+            />
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+              <div className="truncate">
+                {filterTopic ? (filterTopicMeta?.pathLabel ? `Selected: ${filterTopicMeta.pathLabel}` : 'Selected') : 'All topics'}
+              </div>
+              {filterTopic ? (
+                <button
+                  type="button"
+                  onClick={() => { setFilterTopic(''); setFilterTopicMeta({ pathLabel: '' }); }}
+                  className="text-gray-300 hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -645,7 +723,7 @@ const QuestionManagerNew = () => {
                   <span>Marks: {question.marks}</span>
                 </div>
                 <div className="text-sm text-gray-500">
-                  {topics.find(t => t.id === question.topic)?.name || 'No topic'}
+                  {topicPathById.get(String(question.topic)) || topics.find(t => t.id === question.topic)?.name || 'No topic'}
                 </div>
               </div>
             </motion.div>
