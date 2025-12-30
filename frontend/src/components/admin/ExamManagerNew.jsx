@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Plus, Edit2, Trash2, Search, Save, X, Calendar, Clock, 
@@ -81,6 +81,8 @@ const ExamManagerNew = () => {
   const [questions, setQuestions] = useState([]);
   const [topics, setTopics] = useState([]);
   const [topicMeta, setTopicMeta] = useState({ isIb: false, isComplete: false, pathLabel: '' });
+  const [questionFilterTopicId, setQuestionFilterTopicId] = useState('');
+  const [questionFilterMeta, setQuestionFilterMeta] = useState({ isIb: false, isComplete: false, pathLabel: '' });
   const [loading, setLoading] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
@@ -422,8 +424,91 @@ const ExamManagerNew = () => {
   const openQuestionModal = (exam) => {
     setSelectedExam(exam);
     setSelectedQuestions([]);
+    setQuestionFilterTopicId(exam?.topic ? String(exam.topic) : '');
+    setQuestionFilterMeta({ isIb: false, isComplete: false, pathLabel: '' });
     setShowQuestionModal(true);
   };
+
+  const topicById = useMemo(() => {
+    const map = new Map();
+    for (const t of topics || []) {
+      if (t?.id == null) continue;
+      map.set(String(t.id), t);
+    }
+    return map;
+  }, [topics]);
+
+  const getParentId = (topic) => {
+    if (!topic) return null;
+    const raw = topic.parent_id ?? topic.parent;
+    if (raw == null || raw === '') return null;
+    if (typeof raw === 'object') {
+      if (raw.id != null) return String(raw.id);
+      return null;
+    }
+    return String(raw);
+  };
+
+  const topicPathById = useMemo(() => {
+    const cache = new Map();
+
+    const compute = (topicId) => {
+      const key = String(topicId);
+      if (cache.has(key)) return cache.get(key);
+
+      const node = topicById.get(key);
+      if (!node) {
+        cache.set(key, '');
+        return '';
+      }
+
+      const parts = [];
+      let cur = node;
+      let guard = 0;
+      while (cur && guard < 50) {
+        if (cur?.name) parts.unshift(String(cur.name));
+        const pid = getParentId(cur);
+        cur = pid ? topicById.get(String(pid)) : null;
+        guard += 1;
+      }
+
+      const curriculumName = node?.curriculum_name;
+      const path = parts.join(' → ');
+      const label = curriculumName ? `${curriculumName} • ${path}` : path;
+      cache.set(key, label);
+      return label;
+    };
+
+    for (const t of topics || []) {
+      if (t?.id == null) continue;
+      compute(t.id);
+    }
+
+    return cache;
+  }, [topics, topicById]);
+
+  const isTopicInSubtree = (topicId, ancestorId) => {
+    if (!ancestorId) return true;
+    if (!topicId) return false;
+    const anc = String(ancestorId);
+
+    let curId = String(topicId);
+    let guard = 0;
+    while (curId && guard < 50) {
+      if (curId === anc) return true;
+      const node = topicById.get(curId);
+      const pid = getParentId(node);
+      curId = pid ? String(pid) : '';
+      guard += 1;
+    }
+    return false;
+  };
+
+  const filteredQuestionsForModal = useMemo(() => {
+    const filterTopic = questionFilterTopicId ? String(questionFilterTopicId) : '';
+    if (!filterTopic) return questions;
+    return (questions || []).filter((q) => isTopicInSubtree(q?.topic, filterTopic));
+  }, [questions, questionFilterTopicId]);
 
   const openPreviewModal = (exam) => {
     setSelectedExam(exam);
@@ -936,6 +1021,8 @@ const ExamManagerNew = () => {
         onClose={() => {
           setShowQuestionModal(false);
           setSelectedQuestions([]);
+          setQuestionFilterTopicId('');
+          setQuestionFilterMeta({ isIb: false, isComplete: false, pathLabel: '' });
         }}
         onSubmit={null}
         title="Add Questions to Exam"
@@ -960,10 +1047,27 @@ const ExamManagerNew = () => {
               Add Selected
             </motion.button>
           </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Filter Questions by Topic
+            </label>
+            <HierarchyTopicSelector
+              value={questionFilterTopicId}
+              onChange={(topicId) => setQuestionFilterTopicId(topicId ? String(topicId) : '')}
+              onMetaChange={(meta) => setQuestionFilterMeta(meta || { isIb: false, isComplete: false, pathLabel: '' })}
+              className="mt-2"
+            />
+            {questionFilterTopicId && questionFilterMeta?.pathLabel && (
+              <div className="mt-2 text-xs text-gray-400">
+                Showing: <span className="text-gray-200">{questionFilterMeta.pathLabel}</span> (including sub-topics)
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
-          {questions.map(question => (
+          {filteredQuestionsForModal.map(question => (
             <motion.button
               key={question.id}
               type="button"
@@ -997,6 +1101,9 @@ const ExamManagerNew = () => {
                     </span>
                     <span className="text-xs text-gray-400">{question.marks} marks</span>
                   </div>
+                  <div className="text-xs text-gray-400 mb-2">
+                    {question?.topic ? (topicPathById.get(String(question.topic)) || question.topic_name || '—') : (question.topic_name || '—')}
+                  </div>
                   <p className="text-white font-medium line-clamp-2">
                     {question.question_text}
                   </p>
@@ -1004,6 +1111,12 @@ const ExamManagerNew = () => {
               </div>
             </motion.button>
           ))}
+
+          {filteredQuestionsForModal.length === 0 && (
+            <div className="text-sm text-gray-400 p-4 bg-white/5 border border-white/10 rounded-lg">
+              No questions found for this topic path.
+            </div>
+          )}
         </div>
       </Modal>
 
