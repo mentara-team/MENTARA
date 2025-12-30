@@ -86,6 +86,17 @@ class ExamSerializer(serializers.ModelSerializer):
         """Convert duration_seconds to minutes"""
         return obj.duration_seconds // 60
 
+    def validate(self, attrs):
+        # level is a non-null CharField in the model (blank allowed). Some clients
+        # may send null when curriculum is non-IB; normalize that to ''.
+        if attrs.get('level', serializers.empty) is None:
+            attrs['level'] = ''
+
+        # paper_number can be null; normalize empty-string to null.
+        if attrs.get('paper_number', serializers.empty) == '':
+            attrs['paper_number'] = None
+        return attrs
+
     # Back-compat: legacy data stored level/paper in title. Prefer explicit fields.
     def to_representation(self, instance):
         data = super().to_representation(instance)

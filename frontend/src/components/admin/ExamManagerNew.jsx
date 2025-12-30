@@ -206,7 +206,7 @@ const ExamManagerNew = () => {
       title: data.title,
       description: data.description,
       topic: data.topic,
-      level: isIb ? (data.level || null) : null,
+      level: isIb ? (data.level || '') : '',
       paper_number: isIb ? paper_number : null,
       duration_seconds,
       total_marks: data.total_marks,
