@@ -70,6 +70,8 @@ class TopicViewSet(viewsets.ModelViewSet):
         curriculum = serializer.validated_data.get('curriculum')
         if curriculum is None:
             raise ValidationError({'curriculum': 'This field is required.'})
+        if getattr(curriculum, 'is_active', True) is False:
+            raise ValidationError({'curriculum': 'This curriculum is archived. Restore it before adding topics.'})
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -166,8 +168,41 @@ class ExamViewSet(viewsets.ModelViewSet):
 
 
 class CurriculumViewSet(viewsets.ModelViewSet):
-    queryset = Curriculum.objects.filter(is_active=True)
+    queryset = Curriculum.objects.all()
     serializer_class = CurriculumSerializer
+
+    def get_queryset(self):
+        """List curriculums.
+
+        - Default: only active curriculums.
+        - Admin can pass ?include_archived=1 to include archived curriculums.
+        """
+        qs = Curriculum.objects.all()
+        include_archived = (self.request.query_params.get('include_archived') or '').strip().lower() in (
+            '1',
+            'true',
+            'yes',
+        )
+        user = getattr(self.request, 'user', None)
+        is_admin = bool(
+            user
+            and user.is_authenticated
+            and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == 'ADMIN')
+        )
+        if is_admin and include_archived:
+            return qs
+        return qs.filter(is_active=True)
+
+    def get_object(self):
+        """Allow admins to access archived curriculums for restore/purge actions."""
+        user = getattr(self.request, 'user', None)
+        is_admin = bool(
+            user
+            and user.is_authenticated
+            and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == 'ADMIN')
+        )
+        base_qs = Curriculum.objects.all() if is_admin else self.get_queryset()
+        return get_object_or_404(base_qs, pk=self.kwargs.get('pk'))
 
     def get_permissions(self):
         if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
@@ -181,6 +216,30 @@ class CurriculumViewSet(viewsets.ModelViewSet):
         roots = Topic.objects.filter(is_active=True, curriculum=curriculum, parent__isnull=True).select_related('curriculum')
         data = TopicSerializer(roots, many=True).data
         return DRFResponse({'curriculum': CurriculumSerializer(curriculum).data, 'roots': data})
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Restore an archived curriculum (sets is_active=True)."""
+        instance = self.get_object()
+        if getattr(instance, 'is_active', True):
+            return DRFResponse(
+                {
+                    'detail': 'Curriculum is already active.',
+                    'restored': False,
+                    'id': instance.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+        instance.is_active = True
+        instance.save(update_fields=['is_active'])
+        return DRFResponse(
+            {
+                'detail': 'Curriculum restored successfully.',
+                'restored': True,
+                'id': instance.id,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def destroy(self, request, *args, **kwargs):
         """Soft-delete (archive) curriculums.
@@ -197,6 +256,123 @@ class CurriculumViewSet(viewsets.ModelViewSet):
                 'detail': 'Curriculum archived successfully.',
                 'archived': True,
                 'id': instance.id,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['delete'], url_path='purge')
+    def purge(self, request, pk=None):
+        """Permanently delete a curriculum.
+
+        Default behavior is safe: if the curriculum is referenced, return 409.
+        Use ?force=1 to delete ALL content under this curriculum (topics/questions/exams/attempts).
+
+        Note: force deletion is refused if questions under this curriculum are used outside it.
+        """
+        instance = self.get_object()
+        force = (request.query_params.get('force') or '').strip().lower() in ('1', 'true', 'yes')
+        keep_shared = (request.query_params.get('keep_shared') or '').strip().lower() in ('1', 'true', 'yes')
+
+        if not force:
+            try:
+                curriculum_id = instance.id
+                instance.delete()
+                return DRFResponse(
+                    {
+                        'detail': 'Curriculum permanently deleted.',
+                        'deleted': True,
+                        'forced': False,
+                        'id': curriculum_id,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except ProtectedError:
+                return DRFResponse(
+                    {
+                        'detail': (
+                            'Cannot permanently delete this curriculum because it has related content. '
+                            'Archive it instead, or use ?force=1 to delete all content under it.'
+                        ),
+                        'deleted': False,
+                        'forced': False,
+                        'id': instance.id,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        with transaction.atomic():
+            topic_ids = list(Topic.objects.filter(curriculum=instance).values_list('id', flat=True))
+            question_ids = list(Question.objects.filter(topic_id__in=topic_ids).values_list('id', flat=True))
+
+            outside_exam_qids = list(
+                ExamQuestion.objects.filter(question_id__in=question_ids)
+                .exclude(exam__topic__curriculum=instance)
+                .values_list('question_id', flat=True)
+                .distinct()
+            )
+            outside_resp_qids = list(
+                Response.objects.filter(question_id__in=question_ids)
+                .exclude(attempt__exam__topic__curriculum=instance)
+                .values_list('question_id', flat=True)
+                .distinct()
+            )
+            shared_question_ids = sorted(set(outside_exam_qids) | set(outside_resp_qids))
+            used_outside = len(shared_question_ids) > 0
+
+            moved_shared = 0
+            if used_outside and keep_shared:
+                shared_curriculum, _ = Curriculum.objects.get_or_create(
+                    name='__Shared Question Pool__',
+                    defaults={'description': 'System: Holds questions shared across curriculums.', 'order': 9999, 'is_active': True},
+                )
+                shared_topic, _ = Topic.objects.get_or_create(
+                    curriculum=shared_curriculum,
+                    parent=None,
+                    name='Shared Questions',
+                    defaults={'description': 'System: Questions moved here to preserve history.', 'icon': '🗂️', 'order': 0, 'is_active': True},
+                )
+                moved_shared = Question.objects.filter(id__in=shared_question_ids).update(topic=shared_topic)
+                question_ids = [qid for qid in question_ids if qid not in set(shared_question_ids)]
+
+            if used_outside and not keep_shared:
+                return DRFResponse(
+                    {
+                        'detail': (
+                            'Cannot force-delete this curriculum because one or more of its questions are '
+                            'used in exams/attempts outside this curriculum. Unlink them first, or call purge '
+                            'with keep_shared=1 to keep those questions and delete the curriculum.'
+                        ),
+                        'deleted': False,
+                        'forced': True,
+                        'keep_shared': False,
+                        'shared_questions': len(shared_question_ids),
+                        'id': instance.id,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            exam_ids = list(Exam.objects.filter(topic_id__in=topic_ids).values_list('id', flat=True))
+
+            attempts_deleted = Attempt.objects.filter(exam_id__in=exam_ids).delete()[0]
+            exams_deleted = Exam.objects.filter(id__in=exam_ids).delete()[0]
+            questions_deleted = Question.objects.filter(id__in=question_ids).delete()[0]
+            topics_deleted = Topic.objects.filter(id__in=topic_ids).delete()[0]
+            curriculum_id = instance.id
+            instance.delete()
+
+        return DRFResponse(
+            {
+                'detail': 'Curriculum permanently deleted (forced).',
+                'deleted': True,
+                'forced': True,
+                'id': curriculum_id,
+                'counts': {
+                    'attempts': attempts_deleted,
+                    'exams': exams_deleted,
+                    'questions': questions_deleted,
+                    'topics': topics_deleted,
+                    'questions_moved_to_shared_pool': moved_shared,
+                },
             },
             status=status.HTTP_200_OK,
         )

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FolderTree, Plus, Edit2, Trash2, ChevronRight, ChevronDown, Search, 
-  Save, X, FolderPlus, BookOpen, Sparkles, Check, AlertCircle
+  Save, X, FolderPlus, BookOpen, Sparkles, Check, AlertCircle, RotateCcw
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -231,6 +231,12 @@ const TopicManagerNew = () => {
     curriculum: null
   });
 
+  const selectedCurriculum = useMemo(
+    () => (curriculums || []).find((c) => String(c.id) === String(selectedCurriculumId)) || null,
+    [curriculums, selectedCurriculumId]
+  );
+  const selectedCurriculumArchived = Boolean(selectedCurriculum && selectedCurriculum.is_active === false);
+
   const parentOptions = useMemo(() => {
     const map = new Map();
     const roots = [];
@@ -272,14 +278,21 @@ const TopicManagerNew = () => {
 
   const fetchCurriculums = async () => {
     try {
-      const response = await api.get('curriculums/');
+      const response = await api.get('curriculums/', {
+        params: isAdmin ? { include_archived: 1 } : {},
+      });
       const data = response?.data;
       const list = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
       setCurriculums(list);
       const prev = selectedCurriculumId;
       if (list.length > 0) {
         const keep = prev && list.some((c) => String(c.id) === String(prev));
-        setSelectedCurriculumId(keep ? String(prev) : String(list[0].id));
+        if (keep) {
+          setSelectedCurriculumId(String(prev));
+        } else {
+          const firstActive = list.find((c) => c && c.is_active !== false);
+          setSelectedCurriculumId(String((firstActive || list[0]).id));
+        }
       } else {
         setSelectedCurriculumId('');
       }
@@ -318,6 +331,90 @@ const TopicManagerNew = () => {
       const data = error.response?.data;
       const detail = data?.detail || (data ? JSON.stringify(data) : null);
       toast.error(detail || 'Failed to archive curriculum', { id: 'archive-curriculum' });
+    }
+  };
+
+  const handleRestoreCurriculum = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can restore curriculums');
+      return;
+    }
+    if (!selectedCurriculumId) {
+      toast.error('Select a curriculum first');
+      return;
+    }
+    const curriculum = curriculums.find((c) => String(c.id) === String(selectedCurriculumId));
+    const name = curriculum?.name || `#${selectedCurriculumId}`;
+    const ok = window.confirm(`Restore curriculum "${name}"?`);
+    if (!ok) return;
+    try {
+      toast.loading('Restoring curriculum…', { id: 'restore-curriculum' });
+      await api.post(`curriculums/${selectedCurriculumId}/restore/`);
+      toast.success('Curriculum restored', { id: 'restore-curriculum' });
+      await fetchCurriculums();
+      await fetchTopics();
+    } catch (error) {
+      console.error('Failed to restore curriculum:', error);
+      const data = error.response?.data;
+      const detail = data?.detail || (data ? JSON.stringify(data) : null);
+      toast.error(detail || 'Failed to restore curriculum', { id: 'restore-curriculum' });
+    }
+  };
+
+  const handlePurgeCurriculum = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can permanently delete curriculums');
+      return;
+    }
+    if (!selectedCurriculumId) {
+      toast.error('Select a curriculum first');
+      return;
+    }
+    const curriculum = curriculums.find((c) => String(c.id) === String(selectedCurriculumId));
+    const name = curriculum?.name || `#${selectedCurriculumId}`;
+    const ok = window.confirm(
+      `PERMANENTLY delete curriculum "${name}"?\n\nThis will delete ALL topics, questions, exams and attempts under it. This cannot be undone.`
+    );
+    if (!ok) return;
+
+    try {
+      toast.loading('Permanently deleting curriculum…', { id: 'purge-curriculum' });
+      await api.delete(`curriculums/${selectedCurriculumId}/purge/`, { params: { force: 1 } });
+      toast.success('Curriculum permanently deleted', { id: 'purge-curriculum' });
+      await fetchCurriculums();
+      await fetchTopics();
+    } catch (error) {
+      console.error('Failed to permanently delete curriculum:', error);
+      const data = error.response?.data;
+      const detail = data?.detail || (data ? JSON.stringify(data) : null);
+
+      const sharedCount = Number(data?.shared_questions || 0);
+      if (error.response?.status === 409 && sharedCount > 0) {
+        const ok2 = window.confirm(
+          `This curriculum has ${sharedCount} question(s) used in other exams/attempts.\n\n` +
+          `To permanently delete the curriculum without breaking history, we can MOVE those shared questions into a Shared Question Pool and continue.\n\nProceed?`
+        );
+        if (!ok2) {
+          toast.error('Permanent delete cancelled', { id: 'purge-curriculum' });
+          return;
+        }
+        try {
+          toast.loading('Deleting curriculum (keeping shared questions)…', { id: 'purge-curriculum' });
+          await api.delete(`curriculums/${selectedCurriculumId}/purge/`, { params: { force: 1, keep_shared: 1 } });
+          toast.success('Curriculum permanently deleted', { id: 'purge-curriculum' });
+          await fetchCurriculums();
+          await fetchTopics();
+          return;
+        } catch (error2) {
+          console.error('Failed to delete curriculum with keep_shared:', error2);
+          const data2 = error2.response?.data;
+          const detail2 = data2?.detail || (data2 ? JSON.stringify(data2) : null);
+          toast.error(detail2 || 'Failed to permanently delete curriculum', { id: 'purge-curriculum' });
+          return;
+        }
+      }
+
+      toast.error(detail || 'Failed to permanently delete curriculum', { id: 'purge-curriculum' });
     }
   };
 
@@ -548,13 +645,27 @@ const TopicManagerNew = () => {
             ) : (
               curriculums.map((c) => (
                 <option key={c.id} value={String(c.id)}>
-                  {c.name}
+                  {c.name}{c.is_active === false ? ' (Archived)' : ''}
                 </option>
               ))
             )}
           </select>
 
-          {isAdmin && (
+          {isAdmin && selectedCurriculumArchived && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleRestoreCurriculum}
+              disabled={!selectedCurriculumId}
+              title={!selectedCurriculumId ? 'Select a curriculum first' : 'Restore this curriculum'}
+              className="p-3 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-300 transition-colors border border-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Restore curriculum"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </motion.button>
+          )}
+
+          {isAdmin && !selectedCurriculumArchived && (
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -568,11 +679,31 @@ const TopicManagerNew = () => {
             </motion.button>
           )}
 
+          {isAdmin && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handlePurgeCurriculum}
+              disabled={!selectedCurriculumId}
+              title={!selectedCurriculumId ? 'Select a curriculum first' : 'Permanently delete this curriculum'}
+              className="p-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 transition-colors border border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Permanently delete curriculum"
+            >
+              <Trash2 className="w-5 h-5" />
+            </motion.button>
+          )}
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowCreateModal(true)}
             className="btn-premium"
+            disabled={selectedCurriculumArchived}
+            title={
+              selectedCurriculumArchived
+                ? 'This curriculum is archived. Restore it to manage topics.'
+                : undefined
+            }
           >
             <Plus className="w-5 h-5 inline mr-2" />
             Create Topic
@@ -583,14 +714,34 @@ const TopicManagerNew = () => {
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowScaffoldModal(true)}
             className="px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
-            disabled={!selectedCurriculumId}
-            title={!selectedCurriculumId ? 'Select a curriculum first' : 'Quickly create IB subject → SL/HL → Paper 1/2/3'}
+            disabled={!selectedCurriculumId || selectedCurriculumArchived}
+            title={
+              !selectedCurriculumId
+                ? 'Select a curriculum first'
+                : selectedCurriculumArchived
+                  ? 'This curriculum is archived. Restore it to scaffold topics.'
+                  : 'Quickly create IB subject → SL/HL → Paper 1/2/3'
+            }
           >
             <FolderPlus className="w-5 h-5 inline mr-2" />
             Quick IB
           </motion.button>
         </div>
       </div>
+
+      {selectedCurriculumArchived && (
+        <div className="premium-card border border-warning/30">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="text-text font-semibold">This curriculum is archived</div>
+              <div className="text-sm text-text-secondary mt-1">
+                Restore it to view/edit topics and use it in dropdowns. Permanently deleting will remove all content under it.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="premium-card">
