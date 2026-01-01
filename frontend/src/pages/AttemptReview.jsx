@@ -102,7 +102,7 @@ function AttemptReview() {
                 {Array.isArray(data?.student_uploads) && data.student_uploads.map((u, idx) => (
                   <a
                     key={`${u.path || ''}_${idx}`}
-                    href={resolveMediaUrl(u.path)}
+                    href={resolveMediaUrl(u.url || u.path)}
                     target="_blank"
                     rel="noreferrer"
                     className="block p-3 rounded-xl bg-surface/40 border border-elevated/50 hover:bg-elevated transition-colors"
@@ -112,9 +112,9 @@ function AttemptReview() {
                   </a>
                 ))}
 
-                {data?.evaluated_pdf ? (
+                {(data?.evaluated_pdf_url || data?.evaluated_pdf) ? (
                   <a
-                    href={resolveMediaUrl(data.evaluated_pdf)}
+                    href={resolveMediaUrl(data.evaluated_pdf_url || data.evaluated_pdf)}
                     target="_blank"
                     rel="noreferrer"
                     className="block p-3 rounded-xl bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors"

@@ -110,6 +110,22 @@ const TestTaking = () => {
     return Array.isArray(questions) && questions.some((q) => q?.question_type === 'STRUCTURED' || q?.type === 'STRUCT');
   }, [questions]);
 
+  // When on upload phase, re-hydrate any already-uploaded files from server.
+  useEffect(() => {
+    if (!attemptId) return;
+    if (!isStructuredExam) return;
+    if (phase !== 'upload') return;
+    (async () => {
+      try {
+        const res = await api.get(`attempts/${attemptId}/review/`);
+        const existing = res?.data?.student_uploads;
+        if (Array.isArray(existing)) setUploaded(existing);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [attemptId, isStructuredExam, phase]);
+
   useEffect(() => {
     if (!isStructuredExam) return;
     if (fiveMinWarned) return;
@@ -288,7 +304,29 @@ const TestTaking = () => {
       return;
     }
 
-    if (!autoSubmit) {
+    // Structured papers: require upload before final submit (unless timed out auto-submit).
+    if (isStructuredExam && phase === 'upload' && !autoSubmit) {
+      const hasUploaded = Array.isArray(uploaded) && uploaded.length > 0;
+      const hasSelected = Array.isArray(uploadFiles) && uploadFiles.length > 0;
+
+      if (!hasUploaded && hasSelected) {
+        // Auto-upload selected files before submitting.
+        try {
+          await handleUploadSubmissions();
+        } catch {
+          return;
+        }
+      }
+
+      const nowHasUploaded = (Array.isArray(uploaded) && uploaded.length > 0);
+      if (!nowHasUploaded) {
+        alert('Please upload your answer file(s) before submitting for evaluation.');
+        return;
+      }
+    }
+
+    // For structured papers, unanswered questions are expected (answers are uploaded as files).
+    if (!autoSubmit && !isStructuredExam) {
       const unanswered = questions.length - Object.keys(answers).length;
       if (unanswered > 0) {
         if (!confirm(`You have ${unanswered} unanswered questions. Submit anyway?`)) {
@@ -372,6 +410,7 @@ const TestTaking = () => {
         error.message ||
         'Failed to upload.';
       alert(`Upload failed: ${msg}`);
+      throw error;
     } finally {
       setUploading(false);
     }
@@ -501,7 +540,16 @@ const TestTaking = () => {
                       <div className="text-sm font-semibold text-text mb-2">Uploaded</div>
                       <div className="space-y-1 text-sm text-text-secondary">
                         {uploaded.map((u, idx) => (
-                          <div key={`${u.path || ''}_${idx}`} className="truncate">{u.name || u.path}</div>
+                          <a
+                            key={`${u.path || ''}_${idx}`}
+                            href={resolveMediaUrl(u.url || u.path)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate hover:text-text transition-colors"
+                            title={u.name || u.path}
+                          >
+                            {u.name || u.path}
+                          </a>
                         ))}
                       </div>
                     </div>

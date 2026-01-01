@@ -157,7 +157,7 @@ function GradingPage() {
                   {Array.isArray(attempt?.student_uploads) && attempt.student_uploads.map((u, idx) => (
                     <a
                       key={`${u.path || ''}_${idx}`}
-                      href={resolveMediaUrl(u.path)}
+                      href={resolveMediaUrl(u.url || u.path)}
                       target="_blank"
                       rel="noreferrer"
                       className="block p-3 rounded-xl bg-surface/40 border border-elevated/50 hover:bg-elevated transition-colors"
@@ -167,9 +167,9 @@ function GradingPage() {
                     </a>
                   ))}
 
-                  {attempt?.evaluated_pdf && (
+                  {(attempt?.evaluated_pdf_url || attempt?.evaluated_pdf) && (
                     <a
-                      href={resolveMediaUrl(attempt.evaluated_pdf)}
+                      href={resolveMediaUrl(attempt.evaluated_pdf_url || attempt.evaluated_pdf)}
                       target="_blank"
                       rel="noreferrer"
                       className="block p-3 rounded-xl bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors"
@@ -188,10 +188,12 @@ function GradingPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <div className="text-lg font-bold text-text">Question {idx + 1}</div>
-                      {response.correct ? (
+                      {response.correct === true ? (
                         <Badge tone="accent"><CheckCircle className="w-3.5 h-3.5 mr-1" />Auto Correct</Badge>
-                      ) : (
+                      ) : response.correct === false ? (
                         <Badge tone="danger"><XCircle className="w-3.5 h-3.5 mr-1" />Auto Incorrect</Badge>
+                      ) : (
+                        <Badge>Under review</Badge>
                       )}
                     </div>
                     <div className="mt-3 text-sm text-text-secondary whitespace-pre-wrap">
@@ -219,6 +221,8 @@ function GradingPage() {
                         <input
                           type="number"
                           step="0.5"
+                          min={0}
+                          max={response?.total_marks ?? undefined}
                           value={marks[response.question_id] ?? 0}
                           onChange={(e) => setMarks({ ...marks, [response.question_id]: e.target.value })}
                           className="input-mentara mt-1"

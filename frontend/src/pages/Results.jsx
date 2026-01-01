@@ -43,10 +43,23 @@ const Results = () => {
       setRequiresTeacherGrading(requiresTG);
       setNeedsGrading(needsTG);
       
-      const totalQuestions = review.responses?.length || 0;
-      const correctAnswers = review.responses?.filter(r => r.correct).length || 0;
-      const incorrectAnswers = review.responses?.filter(r => r.correct === false && r.answer).length || 0;
-      const unanswered = totalQuestions - correctAnswers - incorrectAnswers;
+      const responses = Array.isArray(review.responses) ? review.responses : [];
+      const totalQuestions = responses.length;
+
+      // STRUCT answers are uploaded as files and are teacher-graded via marks.
+      // They should NOT be counted as correct/incorrect/unanswered here.
+      const isStructured = (r) => {
+        const t = String(r?.question_type || r?.type || '').toUpperCase();
+        return t.startsWith('STRUCT');
+      };
+
+      const gradableResponses = responses.filter((r) => !isStructured(r));
+      const totalGradableQuestions = gradableResponses.length;
+      const correctAnswers = gradableResponses.filter((r) => r.correct === true).length;
+      const incorrectAnswers = gradableResponses.filter(
+        (r) => r.correct === false && r.answer !== null && r.answer !== undefined
+      ).length;
+      const unanswered = totalGradableQuestions - correctAnswers - incorrectAnswers;
 
       // Use marks-based percentage from backend (works for both MCQ and teacher-graded STRUCT).
       const scorePercent = Number.isFinite(Number(review?.percentage))
@@ -62,6 +75,7 @@ const Results = () => {
         incorrect_answers: incorrectAnswers,
         unanswered: unanswered,
         total_questions: totalQuestions,
+        total_gradable_questions: totalGradableQuestions,
         time_taken: attempt.duration_seconds || 0,
         responses: review.responses || [],
         total_score: review.score || 0,
@@ -207,7 +221,9 @@ const Results = () => {
               <div>
                 <p className="text-sm text-text-secondary mb-1">Correct Answers</p>
                 <p className="text-2xl font-bold text-accent">
-                  {result.correct_answers || 0} / {result.total_questions || 0}
+                  {(result.total_gradable_questions || 0) > 0
+                    ? `${result.correct_answers || 0} / ${result.total_gradable_questions || 0}`
+                    : '—'}
                 </p>
               </div>
               <div className="w-px h-12 bg-elevated"></div>

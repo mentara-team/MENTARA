@@ -511,8 +511,26 @@ def start_exam(request, exam_id):
             )
 
         meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
-        question_order = meta.get('question_order')
-        if not isinstance(question_order, list) or not question_order:
+        raw_question_order = meta.get('question_order')
+
+        def _normalize_question_order(raw) -> list[int]:
+            if not isinstance(raw, list):
+                return []
+            normalized: list[int] = []
+            seen: set[int] = set()
+            for item in raw:
+                try:
+                    qid = int(item)
+                except Exception:
+                    continue
+                if qid in seen:
+                    continue
+                seen.add(qid)
+                normalized.append(qid)
+            return normalized
+
+        question_order = _normalize_question_order(raw_question_order)
+        if not question_order:
             question_order = _pick_question_ids_for_exam()
             meta['question_order'] = question_order
             attempt.metadata = meta
@@ -879,10 +897,42 @@ def review_attempt(request, attempt_id):
     needs_grading = False
     student_uploads = []
     evaluated_pdf = None
+    evaluated_pdf_url = None
     if isinstance(attempt.metadata, dict):
         teacher_remarks = attempt.metadata.get('teacher_remarks', {}) or {}
         student_uploads = attempt.metadata.get('student_uploads', []) or []
         evaluated_pdf = attempt.metadata.get('evaluated_pdf')
+        evaluated_pdf_url = attempt.metadata.get('evaluated_pdf_url')
+
+    # Normalize upload URLs for the frontend.
+    # FileSystemStorage saves paths like "answer_uploads/..." but URLs are served under MEDIA_URL ("/media/").
+    from django.core.files.storage import default_storage
+
+    def _file_url(path_or_url: str | None):
+        if not path_or_url or not isinstance(path_or_url, str):
+            return None
+        if path_or_url.startswith('http://') or path_or_url.startswith('https://'):
+            return path_or_url
+        # If already a URL-like path (e.g. /media/...), keep it.
+        if path_or_url.startswith('/'):
+            return path_or_url
+        try:
+            return default_storage.url(path_or_url)
+        except Exception:
+            return path_or_url
+
+    normalized_uploads = []
+    for u in (student_uploads or []):
+        if not isinstance(u, dict):
+            continue
+        p = u.get('path')
+        normalized_uploads.append({
+            **u,
+            'url': u.get('url') or _file_url(p),
+        })
+
+    if evaluated_pdf and not evaluated_pdf_url:
+        evaluated_pdf_url = _file_url(evaluated_pdf)
     for r in Response.objects.filter(attempt=attempt).select_related('question'):
         q_type = getattr(r.question, 'type', None)
         is_struct = q_type == 'STRUCT'
@@ -913,7 +963,7 @@ def review_attempt(request, attempt_id):
             'remarks': teacher_remarks.get(str(r.question_id), ''),
         })
 
-    missing_submission_upload = bool(requires_teacher_grading and not (student_uploads or []))
+    missing_submission_upload = bool(requires_teacher_grading and not (normalized_uploads or []))
 
     return DRFResponse({
         'responses': res, 
@@ -922,8 +972,9 @@ def review_attempt(request, attempt_id):
         'percentage': attempt.percentage,
         'requires_teacher_grading': requires_teacher_grading,
         'needs_grading': needs_grading,
-        'student_uploads': student_uploads,
+        'student_uploads': normalized_uploads,
         'evaluated_pdf': evaluated_pdf,
+        'evaluated_pdf_url': evaluated_pdf_url,
         'missing_submission_upload': missing_submission_upload,
         'exam_title': attempt.exam.title,
         'duration_seconds': attempt.duration_seconds
@@ -1064,10 +1115,16 @@ def upload_attempt_submission(request, attempt_id):
         safe_name = f"{base[:80]}{ext}" if base else f"upload{ext}"
         file_path = f"answer_uploads/{attempt.user_id}/{attempt.id}/{timezone.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
         saved_path = default_storage.save(file_path, uploaded)
+        url = None
+        try:
+            url = default_storage.url(saved_path)
+        except Exception:
+            url = None
         uploads.append(
             {
                 'name': uploaded.name,
                 'path': saved_path,
+                'url': url,
                 'uploaded_at': timezone.now().isoformat(),
             }
         )
@@ -1098,6 +1155,17 @@ def grade_response(request, response_id):
                 resp.teacher_mark = float(teacher_mark)
             except Exception:
                 return DRFResponse({'detail': 'Invalid teacher_mark. Must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Enforce bounds for structured marking.
+            try:
+                max_marks = float(resp.question.marks)
+            except Exception:
+                max_marks = None
+            if resp.teacher_mark is not None:
+                if resp.teacher_mark < 0:
+                    return DRFResponse({'detail': 'teacher_mark cannot be negative.'}, status=status.HTTP_400_BAD_REQUEST)
+                if max_marks is not None and resp.teacher_mark > max_marks:
+                    return DRFResponse({'detail': f'teacher_mark cannot exceed {max_marks}.'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Store remarks in attempt metadata
     attempt = resp.attempt
@@ -1136,10 +1204,16 @@ def upload_evaluated_pdf(request, attempt_id):
     
     file_path = f'evaluated_pdfs/{attempt.user_id}/{attempt.id}_{pdf_file.name}'
     saved_path = default_storage.save(file_path, pdf_file)
+    url = None
+    try:
+        url = default_storage.url(saved_path)
+    except Exception:
+        url = None
     
     meta = attempt.metadata or {}
     meta['evaluated_pdf'] = saved_path
+    meta['evaluated_pdf_url'] = url
     attempt.metadata = meta
     attempt.save(update_fields=['metadata'])
     
-    return DRFResponse({'status': 'uploaded', 'path': saved_path}, status=status.HTTP_200_OK)
+    return DRFResponse({'status': 'uploaded', 'path': saved_path, 'url': url}, status=status.HTTP_200_OK)
