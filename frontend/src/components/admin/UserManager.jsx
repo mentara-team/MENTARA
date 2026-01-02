@@ -10,6 +10,38 @@ const UserManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
 
+  const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
+    return new Promise((resolve) => {
+      toast((t) => (
+        <div className="bg-[#1A1B23] border border-white/10 rounded-2xl p-4 shadow-2xl w-[min(92vw,520px)]">
+          <div className="text-sm font-semibold text-white whitespace-pre-line">{message}</div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(false);
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-lg transition-colors text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(true);
+              }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      ), { duration: Infinity });
+    });
+  };
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -28,9 +60,8 @@ const UserManager = () => {
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+    const ok = await confirmToast('Are you sure you want to delete this user?', { confirmText: 'Delete' });
+    if (!ok) return;
     try {
       // api baseURL already includes `/api/`
       await api.delete(`admin/users/${userId}/`);

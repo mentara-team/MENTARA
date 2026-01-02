@@ -100,10 +100,41 @@ const ExamManager = () => {
     }
   };
 
+  const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
+    return new Promise((resolve) => {
+      toast((t) => (
+        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[min(92vw,420px)]">
+          <div className="text-sm font-semibold text-text">{message}</div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(false);
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(true);
+              }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      ), { duration: Infinity });
+    });
+  };
+
   const handleDelete = async (examId) => {
-    if (!window.confirm('Are you sure you want to delete this exam?')) {
-      return;
-    }
+    const ok = await confirmToast('Are you sure you want to delete this exam?', { confirmText: 'Delete' });
+    if (!ok) return;
     try {
       // api baseURL already includes `/api/`
       await api.delete(`exams/${examId}/`);

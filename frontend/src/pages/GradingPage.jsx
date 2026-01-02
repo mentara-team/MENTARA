@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ClipboardCheck, ArrowLeft, Upload, Save, CheckCircle, XCircle } from 'lucide-react';
+import { ClipboardCheck, ArrowLeft, Upload, Save, CheckCircle, XCircle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import api from '../services/api';
@@ -19,6 +19,7 @@ function GradingPage() {
   const [pdfFile, setPdfFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
   const API_BASE = (api?.defaults?.baseURL || '').replace(/\/+$/, '');
   const BACKEND_ORIGIN = API_BASE.replace(/\/?api\/?$/, '');
@@ -61,6 +62,10 @@ function GradingPage() {
 
   async function handleGrade(responseId, questionId) {
     try {
+      if (attempt?.grades_finalized) {
+        toast.error('Grades are finalized and cannot be edited.');
+        return;
+      }
       if (!responseId) {
         toast.error('Missing response id; please refresh the page.');
         return;
@@ -77,14 +82,34 @@ function GradingPage() {
         remarks: remarks[questionId],
       });
       toast.success('Saved grade');
+      await loadAttempt();
     } catch (error) {
       console.error('Grade error:', error);
       toast.error(error?.response?.data?.detail || 'Failed to save grade');
     }
   }
 
+  async function handleFinalize() {
+    setFinalizing(true);
+    try {
+      const res = await api.post(`attempts/${attemptId}/finalize-grading/`);
+      toast.success(res?.data?.detail || 'Grades finalized');
+      await loadAttempt();
+    } catch (error) {
+      console.error('Finalize error:', error);
+      toast.error(error?.response?.data?.detail || 'Failed to finalize grades');
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
   async function handleUploadPDF() {
     if (!pdfFile) return;
+
+    if (attempt?.grades_finalized) {
+      toast.error('Grades are finalized. PDF upload is locked.');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -139,8 +164,22 @@ function GradingPage() {
             <div>
               <h1 className="text-3xl font-bold text-text">Grade Submission</h1>
               <p className="text-text-secondary">Add marks and feedback per question.</p>
+              <div className="mt-2 text-sm text-text-secondary">
+                <span className="font-semibold text-text">{attempt?.curriculum_name || attempt?.exam_snapshot?.curriculum_name || '—'}</span>
+                <span className="mx-2">•</span>
+                <span className="font-semibold text-text">{attempt?.topic_name || attempt?.exam_snapshot?.topic_name || '—'}</span>
+                <span className="mx-2">•</span>
+                <span className="font-semibold text-text">{attempt?.exam_title || attempt?.exam_snapshot?.exam_title || '—'}</span>
+              </div>
             </div>
-            <Badge tone="primary">Attempt #{attemptId}</Badge>
+            <div className="flex items-center gap-2">
+              {attempt?.grades_finalized ? (
+                <Badge tone="accent"><Lock className="w-3.5 h-3.5 mr-1" />Finalized</Badge>
+              ) : (
+                <Badge tone="primary">In progress</Badge>
+              )}
+              <Badge>Attempt #{attemptId}</Badge>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -168,15 +207,29 @@ function GradingPage() {
                   ))}
 
                   {(attempt?.evaluated_pdf_url || attempt?.evaluated_pdf) && (
-                    <a
-                      href={resolveMediaUrl(attempt.evaluated_pdf_url || attempt.evaluated_pdf)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block p-3 rounded-xl bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors"
-                    >
-                      <div className="text-sm font-semibold text-text truncate">Evaluated PDF</div>
-                      <div className="text-xs text-text-secondary truncate">{attempt.evaluated_pdf}</div>
-                    </a>
+                    <div className="p-3 rounded-xl bg-accent/10 border border-accent/20">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-text truncate">Evaluated PDF</div>
+                          <div className="text-xs text-text-secondary truncate">{attempt.evaluated_pdf}</div>
+                        </div>
+                        <a
+                          href={resolveMediaUrl(attempt.evaluated_pdf_url || attempt.evaluated_pdf)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-secondary text-sm"
+                        >
+                          Open
+                        </a>
+                      </div>
+                      <div className="mt-3 rounded-xl overflow-hidden border border-elevated/50 bg-surface">
+                        <iframe
+                          title="Evaluated PDF"
+                          src={resolveMediaUrl(attempt.evaluated_pdf_url || attempt.evaluated_pdf)}
+                          className="w-full h-[520px]"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -226,6 +279,7 @@ function GradingPage() {
                           value={marks[response.question_id] ?? 0}
                           onChange={(e) => setMarks({ ...marks, [response.question_id]: e.target.value })}
                           className="input-mentara mt-1"
+                          disabled={Boolean(attempt?.grades_finalized)}
                         />
                       </div>
                       <div>
@@ -235,11 +289,13 @@ function GradingPage() {
                           onChange={(e) => setRemarks({ ...remarks, [response.question_id]: e.target.value })}
                           className="input-mentara mt-1 min-h-[96px]"
                           placeholder="Add feedback for student..."
+                          disabled={Boolean(attempt?.grades_finalized)}
                         />
                       </div>
                       <button
                         onClick={() => handleGrade(response.response_id, response.question_id)}
                         className="btn-primary inline-flex items-center justify-center gap-2"
+                        disabled={Boolean(attempt?.grades_finalized)}
                       >
                         <Save className="w-4 h-4" />
                         Save Grade
@@ -249,6 +305,29 @@ function GradingPage() {
                 </div>
               </div>
             ))}
+
+            <div className="card-elevated">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-lg font-bold text-text">Finalize Grades</div>
+                  <div className="text-sm text-text-secondary">
+                    Once finalized, grades become read-only and rank becomes stable.
+                  </div>
+                </div>
+                {attempt?.rank ? <Badge tone="primary">Rank #{attempt.rank}</Badge> : <Badge>Rank —</Badge>}
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={handleFinalize}
+                  className="btn-primary inline-flex items-center justify-center gap-2"
+                  disabled={Boolean(attempt?.grades_finalized) || finalizing}
+                >
+                  <Lock className="w-4 h-4" />
+                  {attempt?.grades_finalized ? 'Finalized' : (finalizing ? 'Finalizing…' : 'Finalize Grades')}
+                </button>
+              </div>
+            </div>
 
             <div className="card-elevated">
               <div className="flex items-center justify-between gap-4">
@@ -265,10 +344,11 @@ function GradingPage() {
                   accept=".pdf"
                   onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
                   className="input-mentara"
+                  disabled={Boolean(attempt?.grades_finalized)}
                 />
                 <button
                   onClick={handleUploadPDF}
-                  disabled={!pdfFile || saving}
+                  disabled={!pdfFile || saving || Boolean(attempt?.grades_finalized)}
                   className="btn-secondary inline-flex items-center justify-center gap-2"
                 >
                   <Upload className="w-4 h-4" />

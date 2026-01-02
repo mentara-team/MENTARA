@@ -273,6 +273,41 @@ const TopicManagerNew = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [curriculumForm, setCurriculumForm] = useState({ name: '', description: '' });
+
+  const confirmToast = useCallback(
+    (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
+      return new Promise((resolve) => {
+        toast((t) => (
+          <div className="glass border border-white/10 rounded-2xl p-4 w-[min(92vw,520px)]">
+            <div className="text-sm font-semibold text-white whitespace-pre-line">{message}</div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  resolve(false);
+                }}
+              >
+                {cancelText}
+              </button>
+              <button
+                type="button"
+                className="btn-premium text-sm"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  resolve(true);
+                }}
+              >
+                {confirmText}
+              </button>
+            </div>
+          </div>
+        ), { duration: Infinity });
+      });
+    },
+    []
+  );
   const [scaffoldForm, setScaffoldForm] = useState({ subject_name: '' });
   const [formData, setFormData] = useState({
     name: '',
@@ -391,8 +426,9 @@ const TopicManagerNew = () => {
 
     const curriculum = curriculums.find((c) => String(c.id) === String(selectedCurriculumId));
     const name = curriculum?.name || `#${selectedCurriculumId}`;
-    const ok = window.confirm(
-      `Archive curriculum "${name}"?\n\nThis will hide it from dropdowns, but will NOT delete historical exams/attempts.`
+    const ok = await confirmToast(
+      `Archive curriculum "${name}"?\n\nThis will hide it from dropdowns, but will NOT delete historical exams/attempts.`,
+      { confirmText: 'Archive' }
     );
     if (!ok) return;
 
@@ -421,7 +457,7 @@ const TopicManagerNew = () => {
     }
     const curriculum = curriculums.find((c) => String(c.id) === String(selectedCurriculumId));
     const name = curriculum?.name || `#${selectedCurriculumId}`;
-    const ok = window.confirm(`Restore curriculum "${name}"?`);
+    const ok = await confirmToast(`Restore curriculum "${name}"?`, { confirmText: 'Restore' });
     if (!ok) return;
     try {
       toast.loading('Restoring curriculum…', { id: 'restore-curriculum' });
@@ -448,8 +484,9 @@ const TopicManagerNew = () => {
     }
     const curriculum = curriculums.find((c) => String(c.id) === String(selectedCurriculumId));
     const name = curriculum?.name || `#${selectedCurriculumId}`;
-    const ok = window.confirm(
-      `PERMANENTLY delete curriculum "${name}"?\n\nThis will delete ALL topics, questions, exams and attempts under it. This cannot be undone.`
+    const ok = await confirmToast(
+      `PERMANENTLY delete curriculum "${name}"?\n\nThis will delete ALL topics, questions, exams and attempts under it. This cannot be undone.`,
+      { confirmText: 'Delete permanently' }
     );
     if (!ok) return;
 
@@ -466,9 +503,10 @@ const TopicManagerNew = () => {
 
       const sharedCount = Number(data?.shared_questions || 0);
       if (error.response?.status === 409 && sharedCount > 0) {
-        const ok2 = window.confirm(
+        const ok2 = await confirmToast(
           `This curriculum has ${sharedCount} question(s) used in other exams/attempts.\n\n` +
-          `To permanently delete the curriculum without breaking history, we can MOVE those shared questions into a Shared Question Pool and continue.\n\nProceed?`
+            `To permanently delete the curriculum without breaking history, we can MOVE those shared questions into a Shared Question Pool and continue.\n\nProceed?`,
+          { confirmText: 'Proceed' }
         );
         if (!ok2) {
           toast.error('Permanent delete cancelled', { id: 'purge-curriculum' });
@@ -633,9 +671,11 @@ const TopicManagerNew = () => {
   };
 
   const handleDelete = useCallback(async (topicId) => {
-    if (!window.confirm('Are you sure you want to delete this topic? This will also delete all subtopics and associated content.')) {
-      return;
-    }
+    const ok = await confirmToast(
+      'Are you sure you want to delete this topic? This will also delete all subtopics and associated content.',
+      { confirmText: 'Delete' }
+    );
+    if (!ok) return;
     try {
       await api.delete(`topics/${topicId}/`);
       toast.success('🗑️ Topic deleted successfully!');
@@ -648,7 +688,7 @@ const TopicManagerNew = () => {
           'Failed to delete topic'
       );
     }
-  }, [fetchTopics]);
+  }, [fetchTopics, confirmToast]);
 
   const openEditModal = useCallback((topic) => {
     setSelectedTopic(topic);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -7,6 +7,7 @@ import {
   AlertCircle, BookOpen, Save, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 const API_BASE = (api?.defaults?.baseURL || '').replace(/\/+$/, '');
 const BACKEND_ORIGIN = API_BASE.replace(/\/?api\/?$/, '');
@@ -73,10 +74,39 @@ const TestTaking = () => {
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState([]);
   const [fiveMinWarned, setFiveMinWarned] = useState(false);
+  const [submitConfirm, setSubmitConfirm] = useState(null); // { unanswered: number } | null
+
+  const [cheatStrikes, setCheatStrikes] = useState(0);
+  const cheatStrikesRef = useRef(0);
+  const submittingRef = useRef(false);
+  const attemptIdRef = useRef(null);
+  const timeRemainingRef = useRef(0);
+  const phaseRef = useRef('questions');
+
+  const ANTI_CHEAT = {
+    enabled: true,
+    maxStrikes: 3,
+  };
 
   useEffect(() => {
     loadTest();
   }, [examId]);
+
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
+
+  useEffect(() => {
+    attemptIdRef.current = attemptId;
+  }, [attemptId]);
+
+  useEffect(() => {
+    timeRemainingRef.current = timeRemaining;
+  }, [timeRemaining]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   // Persist UI progress so refresh resumes where the student left off.
   useEffect(() => {
@@ -106,6 +136,100 @@ const TestTaking = () => {
     }
   }, [timeRemaining]);
 
+  const recordCheatStrike = (reason) => {
+    if (!ANTI_CHEAT.enabled) return;
+    // Only enforce while the attempt is active.
+    if (!attemptIdRef.current) return;
+    if (submittingRef.current) return;
+    if ((timeRemainingRef.current || 0) <= 0) return;
+
+    setCheatStrikes((prev) => {
+      const next = (prev || 0) + 1;
+      cheatStrikesRef.current = next;
+      try {
+        // Persist strikes in the same UI bucket so refresh doesn't reset behavior.
+        const existing = readAttemptUi(attemptIdRef.current) || {};
+        writeAttemptUi(attemptIdRef.current, {
+          ...existing,
+          anti_cheat: {
+            strikes: next,
+            last_reason: reason || null,
+            last_at: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // ignore
+      }
+
+      toast.error(reason ? `Warning: ${reason}` : 'Warning: suspicious activity detected');
+      if (next >= ANTI_CHEAT.maxStrikes) {
+        toast.error('Too many violations. Submitting now.');
+        // Auto-submit (best-effort). This must not throw.
+        setTimeout(() => {
+          try {
+            handleSubmit(true);
+          } catch {
+            // ignore
+          }
+        }, 250);
+      }
+      return next;
+    });
+  };
+
+  // Anti-cheat listeners: tab switch + leaving fullscreen + back navigation.
+  useEffect(() => {
+    if (!ANTI_CHEAT.enabled) return;
+    if (!attemptId) return;
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        recordCheatStrike('You switched tabs or minimized the window');
+      }
+    };
+
+    const onBlur = () => {
+      // Some browsers fire blur on alt-tab.
+      recordCheatStrike('Window focus lost');
+    };
+
+    const onFullscreenChange = () => {
+      const inFs = Boolean(document.fullscreenElement);
+      // Leaving fullscreen mid-exam is treated as a strike.
+      if (!inFs) {
+        recordCheatStrike('Fullscreen exited');
+      }
+    };
+
+    // Back-navigation suppression (best-effort).
+    const pushGuard = () => {
+      try {
+        window.history.pushState({ mentaraExamGuard: true }, '', window.location.href);
+      } catch {
+        // ignore
+      }
+    };
+
+    const onPopState = (e) => {
+      // Keep user on the attempt route.
+      pushGuard();
+      toast.error('Back navigation is disabled during an exam.');
+    };
+
+    pushGuard();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    window.addEventListener('popstate', onPopState);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [attemptId]);
+
   const isStructuredExam = useMemo(() => {
     return Array.isArray(questions) && questions.some((q) => q?.question_type === 'STRUCTURED' || q?.type === 'STRUCT');
   }, [questions]);
@@ -131,8 +255,7 @@ const TestTaking = () => {
     if (fiveMinWarned) return;
     if (timeRemaining === 300) {
       setFiveMinWarned(true);
-      // Keep it simple: single warning.
-      alert('5 minutes left. If this is a structured paper, upload your answers before time runs out.');
+      toast('5 minutes left. If this is a structured paper, upload your answers before time runs out.', { icon: '⏳' });
     }
   }, [isStructuredExam, fiveMinWarned, timeRemaining]);
 
@@ -155,7 +278,23 @@ const TestTaking = () => {
       
       // Start (or resume) the exam attempt - backend returns the same in-progress attempt
       // so refresh will not restart the timer or create duplicate attempts.
-      const startRes = await api.post(`exams/${examId}/start/`);
+      let startRes;
+      try {
+        startRes = await api.post(`exams/${examId}/start/`);
+      } catch (startErr) {
+        // If student already attempted this exam, redirect to results.
+        if (startErr?.response?.status === 409) {
+          const attemptedId = startErr.response?.data?.attempt_id;
+          toast.error('You have already attempted this exam. Showing your previous result.');
+          if (attemptedId) {
+            navigate(`/results/${attemptedId}`);
+            return;
+          }
+          navigate('/dashboard');
+          return;
+        }
+        throw startErr;
+      }
       console.log('✅ Start response received:', startRes.data);
 
       const startedAttemptId = startRes.data.attempt_id;
@@ -175,6 +314,16 @@ const TestTaking = () => {
       
       console.log('Mapped questions:', mappedQuestions);
       setQuestions(mappedQuestions);
+
+      const startedExam = startRes.data?.exam;
+      setExam(
+        startedExam || {
+          id: Number(examId),
+          title: `Test ${examId}`,
+          level: '',
+          paper_number: null,
+        }
+      );
       
       // Calculate time remaining from expires_at
       const expiresAt = new Date(startRes.data.expires_at);
@@ -184,6 +333,13 @@ const TestTaking = () => {
 
       // Restore local UI progress first (so even unsaved selections survive refresh)
       const localUi = readAttemptUi(startedAttemptId);
+      if (localUi?.anti_cheat && typeof localUi.anti_cheat === 'object') {
+        const strikes = Number(localUi.anti_cheat.strikes);
+        if (Number.isFinite(strikes) && strikes > 0) {
+          setCheatStrikes(strikes);
+          cheatStrikesRef.current = strikes;
+        }
+      }
       const localAnswers = (localUi && typeof localUi.answers === 'object' && localUi.answers) ? localUi.answers : {};
       const localFlagged = Array.isArray(localUi?.flagged) ? new Set(localUi.flagged) : new Set();
 
@@ -233,9 +389,7 @@ const TestTaking = () => {
         if (idx >= 0) setCurrentQuestionIndex(idx);
       }
       
-      // Get exam details
-      const examRes = await api.get(`exams/${examId}/`);
-      setExam(examRes.data);
+      // Exam details are returned by start endpoint; no extra fetch required.
     } catch (error) {
       console.error('❌ FAILED TO LOAD TEST');
       console.error('Error object:', error);
@@ -246,16 +400,29 @@ const TestTaking = () => {
       console.error('Error config:', error.config);
       // If backend says the attempt timed out, don't restart; send user back.
       if (error.response?.status === 410) {
-        alert('Your attempt has timed out. Please start a new test.');
+        toast.error('Your attempt has timed out.');
         navigate('/dashboard');
         return;
       }
 
       const errorMsg = error.response?.data?.detail || error.response?.data?.error || error.message || 'Failed to load test';
-      alert(`Failed to load test: ${errorMsg}\n\nPlease try again.`);
+      toast.error(`Failed to load test: ${errorMsg}`);
       navigate('/dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const canFullscreen = Boolean(document?.documentElement?.requestFullscreen);
+  const isFullscreen = Boolean(document?.fullscreenElement);
+  const showFullscreenPrompt = Boolean(ANTI_CHEAT.enabled && canFullscreen && attemptId && !isFullscreen && timeRemaining > 0);
+
+  const requestFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen();
+      toast.success('Fullscreen enabled');
+    } catch {
+      toast.error('Fullscreen request was blocked by the browser.');
     }
   };
 
@@ -295,7 +462,7 @@ const TestTaking = () => {
     });
   };
 
-  const handleSubmit = async (autoSubmit = false) => {
+  const handleSubmit = async (autoSubmit = false, force = false) => {
     if (submitting) return;
 
     // Structured papers: guide the student to the upload step before final submit.
@@ -320,18 +487,18 @@ const TestTaking = () => {
 
       const nowHasUploaded = (Array.isArray(uploaded) && uploaded.length > 0);
       if (!nowHasUploaded) {
-        alert('Please upload your answer file(s) before submitting for evaluation.');
+        toast.error('Please upload your answer file(s) before submitting for evaluation.');
         return;
       }
     }
 
     // For structured papers, unanswered questions are expected (answers are uploaded as files).
-    if (!autoSubmit && !isStructuredExam) {
+    if (!autoSubmit && !isStructuredExam && !force) {
       const unanswered = questions.length - Object.keys(answers).length;
       if (unanswered > 0) {
-        if (!confirm(`You have ${unanswered} unanswered questions. Submit anyway?`)) {
-          return;
-        }
+        setSubmitConfirm({ unanswered });
+        toast('Review: some questions are unanswered.', { icon: '⚠️' });
+        return;
       }
     }
 
@@ -378,7 +545,7 @@ const TestTaking = () => {
         error.response?.data?.error ||
         error.message ||
         'Failed to submit test.';
-      alert(`Failed to submit test: ${msg}\n\nPlease try again.`);
+      toast.error(`Failed to submit test: ${msg}`);
     } finally {
       setSubmitting(false);
     }
@@ -387,7 +554,7 @@ const TestTaking = () => {
   const handleUploadSubmissions = async () => {
     if (!attemptId) return;
     if (!uploadFiles || uploadFiles.length === 0) {
-      alert('Please select at least one file to upload.');
+      toast.error('Please select at least one file to upload.');
       return;
     }
     setUploading(true);
@@ -401,7 +568,7 @@ const TestTaking = () => {
       });
 
       setUploaded(res?.data?.student_uploads || []);
-      alert('Upload successful.');
+      toast.success('Upload successful.');
     } catch (error) {
       console.error('Upload failed:', error);
       const msg =
@@ -409,7 +576,7 @@ const TestTaking = () => {
         error.response?.data?.error ||
         error.message ||
         'Failed to upload.';
-      alert(`Upload failed: ${msg}`);
+      toast.error(`Upload failed: ${msg}`);
       throw error;
     } finally {
       setUploading(false);
@@ -446,13 +613,32 @@ const TestTaking = () => {
       {/* Fixed Header */}
       <header className="glass border-b border-elevated/50 sticky top-0 z-50 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 py-4">
+          {showFullscreenPrompt && (
+            <div className="mb-3 p-3 rounded-xl bg-warning/10 border border-warning/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+                <div>
+                  <div className="text-sm font-semibold text-warning">Anti-cheat enabled</div>
+                  <div className="text-xs text-text-secondary">Enter fullscreen. Switching tabs or leaving fullscreen may auto-submit.</div>
+                </div>
+              </div>
+              <button onClick={requestFullscreen} className="btn-secondary text-sm">Enter Fullscreen</button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
                 <div>
-                  <h1 className="font-bold text-text">{exam.title}</h1>
-                  <p className="text-xs text-text-secondary">{exam.level} - Paper {exam.paper_number}</p>
+                  <h1 className="font-bold text-text">{exam?.title || `Test ${examId}`}</h1>
+                  <p className="text-xs text-text-secondary">
+                    {(exam?.curriculum_name || '').trim() ? exam.curriculum_name : '—'}
+                    {' • '}
+                    {(exam?.topic_name || '').trim() ? exam.topic_name : '—'}
+                    {' • '}
+                    {(exam?.level || '').trim() ? exam.level : '—'} - Paper {exam?.paper_number ?? '—'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -465,6 +651,12 @@ const TestTaking = () => {
                 <Clock className="w-5 h-5" />
                 <span className="font-mono font-bold">{formatTime(timeRemaining)}</span>
               </div>
+
+              {ANTI_CHEAT.enabled && attemptId ? (
+                <div className="hidden sm:block text-xs text-text-secondary">
+                  Strikes: <span className="font-semibold text-text">{cheatStrikes}</span>/{ANTI_CHEAT.maxStrikes}
+                </div>
+              ) : null}
 
               {/* Progress */}
               <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-surface">
@@ -497,6 +689,37 @@ const TestTaking = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {submitConfirm && (
+          <div className="card-elevated mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm text-text">
+                You have <span className="font-semibold">{submitConfirm.unanswered}</span> unanswered question(s). Submit anyway?
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-sm"
+                  onClick={() => setSubmitConfirm(null)}
+                  disabled={submitting}
+                >
+                  Review
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary text-sm"
+                  onClick={() => {
+                    setSubmitConfirm(null);
+                    handleSubmit(false, true);
+                  }}
+                  disabled={submitting}
+                >
+                  Submit anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Main Question Area */}
           <div className="lg:col-span-3">

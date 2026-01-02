@@ -724,7 +724,13 @@ function TeacherDashboard() {
                   >
                     <div>
                       <div className="font-semibold text-text">Student #{asDisplay(submission.user)}</div>
-                      <div className="text-sm text-text-secondary">Exam: {asDisplay(submission.exam)}</div>
+                      <div className="text-sm text-text-secondary">
+                        <span className="font-semibold text-text">{submission?.exam?.curriculum_name || '—'}</span>
+                        <span className="mx-2">•</span>
+                        <span className="font-semibold text-text">{submission?.exam?.topic_name || '—'}</span>
+                        <span className="mx-2">•</span>
+                        <span className="font-semibold text-text">{submission?.exam?.title || asDisplay(submission.exam) || 'Exam'}</span>
+                      </div>
                       <div className="text-xs text-text-secondary">
                         {submission.started_at ? new Date(submission.started_at).toLocaleString() : '—'}
                       </div>

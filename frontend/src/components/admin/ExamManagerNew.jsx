@@ -85,6 +85,41 @@ const ExamManagerNew = () => {
   const [questionFilterMeta, setQuestionFilterMeta] = useState({ isIb: false, isComplete: false, pathLabel: '' });
   const [loading, setLoading] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
+    return new Promise((resolve) => {
+      const id = toast((t) => (
+        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[min(92vw,420px)]">
+          <div className="text-sm font-semibold text-text">{message}</div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(false);
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(true);
+              }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      ), { duration: Infinity });
+
+      // Safety: if toast is dismissed externally, treat as cancel.
+      if (id == null) return;
+    });
+  };
   const [orderDirty, setOrderDirty] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -272,9 +307,8 @@ const ExamManagerNew = () => {
   };
 
   const handleDelete = async (examId) => {
-    if (!window.confirm('Are you sure you want to delete this exam?')) {
-      return;
-    }
+    const ok = await confirmToast('Are you sure you want to delete this exam?', { confirmText: 'Delete' });
+    if (!ok) return;
     try {
       await api.delete(`exams/${examId}/`);
       toast.success('🗑️ Exam deleted successfully!');
@@ -372,7 +406,10 @@ const ExamManagerNew = () => {
 
   const handleRemoveFromExam = async (questionId) => {
     if (!selectedExam?.id || !questionId) return;
-    const ok = window.confirm('Remove this question from the exam? (The question will stay in the Question Bank)');
+    const ok = await confirmToast(
+      'Remove this question from the exam? (The question will stay in the Question Bank)',
+      { confirmText: 'Remove' }
+    );
     if (!ok) return;
     try {
       await api.delete(`exams/${selectedExam.id}/questions/${questionId}/`);

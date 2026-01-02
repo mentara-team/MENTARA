@@ -57,8 +57,9 @@ class ExamQuestionSerializer(serializers.ModelSerializer):
 
 
 class ExamSerializer(serializers.ModelSerializer):
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    topic_name = serializers.CharField(source='topic.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    topic_name = serializers.SerializerMethodField()
+    curriculum_name = serializers.SerializerMethodField()
     questions_count = serializers.SerializerMethodField()
     question_count = serializers.SerializerMethodField()  # Alias for frontend compatibility
     attempts_count = serializers.SerializerMethodField()
@@ -72,6 +73,24 @@ class ExamSerializer(serializers.ModelSerializer):
     def get_questions_count(self, obj):
         count = obj.exam_questions.count()
         return count
+
+    def get_created_by_name(self, obj):
+        u = getattr(obj, 'created_by', None)
+        if not u:
+            return ''
+        try:
+            return u.get_full_name() or getattr(u, 'username', '') or str(u)
+        except Exception:
+            return getattr(u, 'username', '') or str(u)
+
+    def get_topic_name(self, obj):
+        t = getattr(obj, 'topic', None)
+        return getattr(t, 'name', '') or ''
+
+    def get_curriculum_name(self, obj):
+        t = getattr(obj, 'topic', None)
+        c = getattr(t, 'curriculum', None) if t is not None else None
+        return getattr(c, 'name', '') or ''
     
     def get_question_count(self, obj):
         return self.get_questions_count(obj)
@@ -120,12 +139,31 @@ class ExamSerializer(serializers.ModelSerializer):
 
 class ExamDetailSerializer(serializers.ModelSerializer):
     exam_questions = ExamQuestionSerializer(many=True, read_only=True)
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    topic_name = serializers.CharField(source='topic.name', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    topic_name = serializers.SerializerMethodField()
+    curriculum_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Exam
         fields = '__all__'
+
+    def get_created_by_name(self, obj):
+        u = getattr(obj, 'created_by', None)
+        if not u:
+            return ''
+        try:
+            return u.get_full_name() or getattr(u, 'username', '') or str(u)
+        except Exception:
+            return getattr(u, 'username', '') or str(u)
+
+    def get_topic_name(self, obj):
+        t = getattr(obj, 'topic', None)
+        return getattr(t, 'name', '') or ''
+
+    def get_curriculum_name(self, obj):
+        t = getattr(obj, 'topic', None)
+        c = getattr(t, 'curriculum', None) if t is not None else None
+        return getattr(c, 'name', '') or ''
 
 
 class ResponseSerializer(serializers.ModelSerializer):

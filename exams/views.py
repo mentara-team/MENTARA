@@ -14,6 +14,82 @@ from .models import Curriculum, Topic, Question, Exam, ExamQuestion, Attempt, Re
 from django.core.mail import send_mail
 from .serializers import CurriculumSerializer, TopicSerializer, QuestionSerializer, ExamSerializer, AttemptSerializer, ResponseSerializer
 
+
+def _attempt_expires_at(attempt: Attempt) -> timezone.datetime | None:
+    try:
+        dur = int(getattr(getattr(attempt, 'exam', None), 'duration_seconds', 0) or 0)
+        if dur <= 0:
+            return None
+        return attempt.started_at + timedelta(seconds=dur)
+    except Exception:
+        return None
+
+
+def _mark_attempt_timedout(attempt: Attempt, expires_at_dt: timezone.datetime | None = None) -> None:
+    if expires_at_dt is None:
+        expires_at_dt = _attempt_expires_at(attempt)
+    if expires_at_dt is None:
+        return
+    if attempt.status == 'timedout':
+        return
+    attempt.status = 'timedout'
+    attempt.finished_at = expires_at_dt
+    try:
+        attempt.duration_seconds = int(getattr(getattr(attempt, 'exam', None), 'duration_seconds', 0) or 0)
+    except Exception:
+        attempt.duration_seconds = int(max(0, (expires_at_dt - attempt.started_at).total_seconds()))
+    attempt.save(update_fields=['status', 'finished_at', 'duration_seconds'])
+
+
+def _attempt_needs_grading(attempt_id: int) -> bool:
+    return Response.objects.filter(
+        attempt_id=attempt_id,
+        question__type='STRUCT',
+        teacher_mark__isnull=True,
+    ).exists()
+
+
+def _compute_attempt_rank(attempt: Attempt) -> int | None:
+    """Compute rank for an attempt within its exam.
+
+    Rank ordering: higher score first; ties broken by shorter duration, then earlier start, then lower id.
+    Excludes attempts that still need STRUCT grading.
+    """
+    if not attempt or not getattr(attempt, 'exam_id', None):
+        return None
+    if attempt.status not in ('submitted', 'timedout'):
+        return None
+    if _attempt_needs_grading(attempt.id):
+        return None
+
+    base_qs = Attempt.objects.filter(
+        exam_id=attempt.exam_id,
+        status__in=['submitted', 'timedout'],
+    )
+    pending_struct = Response.objects.filter(
+        attempt_id=OuterRef('pk'),
+        question__type='STRUCT',
+        teacher_mark__isnull=True,
+    )
+    base_qs = base_qs.annotate(needs_grading=Exists(pending_struct)).filter(needs_grading=False)
+
+    better = base_qs.filter(
+        Q(total_score__gt=attempt.total_score)
+        | Q(total_score=attempt.total_score, duration_seconds__lt=attempt.duration_seconds)
+        | Q(
+            total_score=attempt.total_score,
+            duration_seconds=attempt.duration_seconds,
+            started_at__lt=attempt.started_at,
+        )
+        | Q(
+            total_score=attempt.total_score,
+            duration_seconds=attempt.duration_seconds,
+            started_at=attempt.started_at,
+            id__lt=attempt.id,
+        )
+    ).count()
+    return int(better) + 1
+
 class IsAdminOrTeacher(permissions.BasePermission):
     def has_permission(self, request, view):
         u = request.user
@@ -460,8 +536,25 @@ class ResponseViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def start_exam(request, exam_id):
-    exam = get_object_or_404(Exam, pk=exam_id, is_active=True)
+    exam = get_object_or_404(Exam.objects.select_related('topic__curriculum'), pk=exam_id, is_active=True)
     now = timezone.now()
+
+    # Enforce: one exam can only be attempted once per student.
+    # If already submitted/timedout, do not allow a new attempt.
+    completed = (
+        Attempt.objects.filter(user=request.user, exam=exam, status__in=['submitted', 'timedout'])
+        .order_by('-finished_at', '-started_at')
+        .first()
+    )
+    if completed:
+        return DRFResponse(
+            {
+                'detail': 'This exam has already been attempted and submitted.',
+                'attempt_id': completed.id,
+                'status': completed.status,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
 
     def _pick_question_ids_for_exam() -> list[int]:
         eqs = list(ExamQuestion.objects.filter(exam=exam).select_related('question').order_by('order'))
@@ -536,6 +629,26 @@ def start_exam(request, exam_id):
             attempt.metadata = meta
             attempt.save(update_fields=['metadata'])
 
+        # Store a snapshot of "what the student is attempting" for professional display
+        # and for historical records (even if topics/curriculums get archived later).
+        try:
+            snapshot = {
+                'exam_id': exam.id,
+                'exam_title': exam.title,
+                'level': exam.level,
+                'paper_number': exam.paper_number,
+                'topic_id': getattr(exam.topic, 'id', None),
+                'topic_name': getattr(exam.topic, 'name', None),
+                'curriculum_id': getattr(getattr(exam.topic, 'curriculum', None), 'id', None),
+                'curriculum_name': getattr(getattr(exam.topic, 'curriculum', None), 'name', None),
+            }
+            meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
+            meta['exam_snapshot'] = snapshot
+            attempt.metadata = meta
+            attempt.save(update_fields=['metadata'])
+        except Exception:
+            pass
+
     # Build questions list in the stored order.
     qs = Question.objects.filter(id__in=question_order)
     by_id = {q.id: q for q in qs}
@@ -565,7 +678,24 @@ def start_exam(request, exam_id):
         })
 
     return DRFResponse(
-        {'attempt_id': attempt.id, 'expires_at': expires_at, 'questions': questions},
+        {
+            'attempt_id': attempt.id,
+            'expires_at': expires_at,
+            'questions': questions,
+            'exam': {
+                'id': exam.id,
+                'title': exam.title,
+                'level': exam.level,
+                'paper_number': exam.paper_number,
+                'duration_seconds': exam.duration_seconds,
+                'total_marks': exam.total_marks,
+                'passing_marks': exam.passing_marks,
+                'topic_id': getattr(exam.topic, 'id', None),
+                'topic_name': getattr(exam.topic, 'name', None),
+                'curriculum_id': getattr(getattr(exam.topic, 'curriculum', None), 'id', None),
+                'curriculum_name': getattr(getattr(exam.topic, 'curriculum', None), 'name', None),
+            },
+        },
         status=status.HTTP_200_OK,
     )
 
@@ -576,10 +706,15 @@ def submit_exam(request, exam_id):
     attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user, exam_id=exam_id)
     responses = request.data.get('responses', [])  # [{question_id, answer_payload, time_spent_seconds}]
 
+    now = timezone.now()
+    expires_at_dt = _attempt_expires_at(attempt)
+    grace_seconds = 10
+    is_late = bool(expires_at_dt and now > (expires_at_dt + timedelta(seconds=grace_seconds)))
+
     # Idempotency: if the attempt is already submitted, return stored score.
     # This prevents duplicate submits (e.g. user double-click, retry after timeout)
     # from raising IntegrityError on the unique (attempt, question) constraint.
-    if attempt.status == 'submitted':
+    if attempt.status in ('submitted', 'timedout'):
         total_existing = 0
         # Best-effort total for display; falls back to 0 if responses missing.
         try:
@@ -592,6 +727,18 @@ def submit_exam(request, exam_id):
         return DRFResponse(
             {'score': attempt.total_score, 'total': total_existing, 'attempt_id': attempt.id},
             status=status.HTTP_200_OK,
+        )
+
+    # If the attempt is already past the deadline (beyond a small grace window),
+    # do not accept new responses. Mark as timed out and return.
+    if is_late:
+        _mark_attempt_timedout(attempt, expires_at_dt)
+        return DRFResponse(
+            {
+                'detail': 'Attempt timed out. Submission window has ended.',
+                'attempt_id': attempt.id,
+            },
+            status=status.HTTP_410_GONE,
         )
 
     total = 0
@@ -639,12 +786,20 @@ def submit_exam(request, exam_id):
             total += m
             if correct:
                 score += m
-        attempt.finished_at = timezone.now()
+
+        # If within grace but technically past time, treat as timed out submission.
+        if expires_at_dt and now >= expires_at_dt:
+            attempt.finished_at = expires_at_dt
+            attempt.duration_seconds = int(getattr(attempt.exam, 'duration_seconds', 0) or 0)
+            attempt.status = 'timedout'
+        else:
+            attempt.finished_at = now
+            attempt.duration_seconds = int((attempt.finished_at - attempt.started_at).total_seconds())
+            attempt.status = 'submitted'
+
         attempt.total_score = score
         attempt.percentage = round((float(score) / float(total)) * 100.0, 2) if total else 0.0
-        attempt.duration_seconds = int((attempt.finished_at - attempt.started_at).total_seconds())
-        attempt.status = 'submitted'
-        attempt.save()
+        attempt.save(update_fields=['finished_at', 'duration_seconds', 'status', 'total_score', 'percentage'])
 
         try:
             attempt.calculate_percentile()
@@ -662,7 +817,7 @@ def submit_exam(request, exam_id):
         # Avoid slow/hanging SMTP calls unless email is configured.
         if request.user.email and getattr(settings, 'EMAIL_HOST', ''):
             send_mail(
-                subject=f"Mentara Results: {attempt.exam.title}",
+                subject=f"Mentara Results: {(getattr(getattr(attempt, 'exam', None), 'title', None) or 'Exam')}",
                 message=f"You scored {score} out of {total}. Attempt ID: {attempt.id}",
                 from_email=None,
                 recipient_list=[request.user.email],
@@ -671,7 +826,63 @@ def submit_exam(request, exam_id):
     except Exception:
         pass
 
-    return DRFResponse({'score': score, 'total': total, 'attempt_id': attempt.id}, status=status.HTTP_200_OK)
+    # Compute rank immediately for non-teacher-graded attempts.
+    rank = None
+    try:
+        rank = _compute_attempt_rank(attempt)
+        attempt.rank = rank
+        attempt.save(update_fields=['rank'])
+    except Exception:
+        rank = None
+
+    return DRFResponse({'score': score, 'total': total, 'attempt_id': attempt.id, 'rank': rank}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def finalize_attempt_grading(request, attempt_id):
+    """Finalize teacher grading for an attempt.
+
+    After finalization, grades become read-only.
+    """
+    if not _is_teacher_or_admin(request.user):
+        return DRFResponse({'detail': 'Only teachers/admins can finalize grading.'}, status=status.HTTP_403_FORBIDDEN)
+
+    attempt = get_object_or_404(Attempt, pk=attempt_id)
+    meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
+    if meta.get('grades_finalized') is True:
+        return DRFResponse({'detail': 'Grades are already finalized.'}, status=status.HTTP_409_CONFLICT)
+
+    if _attempt_needs_grading(attempt.id):
+        return DRFResponse({'detail': 'Cannot finalize: some structured questions are ungraded.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    total_marks = 0.0
+    total_score = 0.0
+    for r in Response.objects.filter(attempt=attempt).select_related('question'):
+        total_marks += float(r.question.marks or 0)
+        q_score = r.teacher_mark if r.teacher_mark is not None else (float(r.question.marks or 0) if r.correct else 0.0)
+        total_score += float(q_score or 0.0)
+
+    attempt.total_score = float(total_score)
+    attempt.percentage = round((float(total_score) / float(total_marks)) * 100.0, 2) if total_marks else 0.0
+    attempt.save(update_fields=['total_score', 'percentage'])
+
+    meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
+    meta['grades_finalized'] = True
+    meta['graded_by'] = getattr(request.user, 'id', None)
+    meta['graded_at'] = timezone.now().isoformat()
+    attempt.metadata = meta
+    attempt.save(update_fields=['metadata'])
+
+    # Compute and store rank now that grading is complete.
+    try:
+        rank = _compute_attempt_rank(attempt)
+        attempt.rank = rank
+        attempt.save(update_fields=['rank'])
+    except Exception:
+        pass
+
+    return DRFResponse({'detail': 'Grades finalized.', 'attempt_id': attempt.id, 'rank': attempt.rank}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -689,6 +900,10 @@ def resume_attempt(request, attempt_id):
 @permission_classes([permissions.IsAuthenticated])
 def save_attempt(request, attempt_id):
     attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user)
+    expires_at_dt = _attempt_expires_at(attempt)
+    if expires_at_dt and timezone.now() >= expires_at_dt:
+        _mark_attempt_timedout(attempt, expires_at_dt)
+        return DRFResponse({'detail': 'Attempt timed out.'}, status=status.HTTP_410_GONE)
     qid = request.data.get('question_id')
     payload = request.data.get('answer')
     time_spent = int(request.data.get('time_spent', 0))
@@ -811,7 +1026,7 @@ def my_attempts(request):
 
     qs = (
         Attempt.objects.filter(user=request.user)
-        .select_related('exam')
+        .select_related('exam', 'exam__topic', 'exam__topic__curriculum')
         .annotate(
             needs_grading=Exists(needs_grading_sq),
             requires_teacher_grading=Exists(requires_teacher_grading_sq),
@@ -823,12 +1038,20 @@ def my_attempts(request):
             'id': a.id,
             'exam_id': a.exam_id,
             'exam_title': a.exam.title,
+            'topic_name': (getattr(getattr(a.exam, 'topic', None), 'name', None) or (a.metadata or {}).get('exam_snapshot', {}).get('topic_name')),
+            'curriculum_name': (
+                getattr(getattr(getattr(a.exam, 'topic', None), 'curriculum', None), 'name', None)
+                or (a.metadata or {}).get('exam_snapshot', {}).get('curriculum_name')
+            ),
             'status': a.status,
             'requires_teacher_grading': bool(getattr(a, 'requires_teacher_grading', False)),
             'needs_grading': bool(getattr(a, 'needs_grading', False)),
             # Keep legacy key for compatibility
             'score': float(a.total_score or 0),
             'percentage': float(a.percentage or 0),
+            'rank': a.rank,
+            'percentile': a.percentile,
+            'exam_snapshot': (a.metadata or {}).get('exam_snapshot', {}) if isinstance(a.metadata, dict) else {},
             'started_at': a.started_at.isoformat(),
             'finished_at': a.finished_at.isoformat() if a.finished_at else None,
             'duration_seconds': int(a.duration_seconds or 0),
@@ -898,11 +1121,15 @@ def review_attempt(request, attempt_id):
     student_uploads = []
     evaluated_pdf = None
     evaluated_pdf_url = None
+    snapshot = {}
+    grades_finalized = False
     if isinstance(attempt.metadata, dict):
         teacher_remarks = attempt.metadata.get('teacher_remarks', {}) or {}
         student_uploads = attempt.metadata.get('student_uploads', []) or []
         evaluated_pdf = attempt.metadata.get('evaluated_pdf')
         evaluated_pdf_url = attempt.metadata.get('evaluated_pdf_url')
+        snapshot = attempt.metadata.get('exam_snapshot', {}) or {}
+        grades_finalized = bool(attempt.metadata.get('grades_finalized', False))
 
     # Normalize upload URLs for the frontend.
     # FileSystemStorage saves paths like "answer_uploads/..." but URLs are served under MEDIA_URL ("/media/").
@@ -965,6 +1192,23 @@ def review_attempt(request, attempt_id):
 
     missing_submission_upload = bool(requires_teacher_grading and not (normalized_uploads or []))
 
+    exam_title = None
+    topic_name = None
+    curriculum_name = None
+    try:
+        if getattr(attempt, 'exam', None) is not None:
+            exam_title = attempt.exam.title
+            topic_name = getattr(getattr(attempt.exam, 'topic', None), 'name', None)
+            curriculum_name = getattr(getattr(getattr(attempt.exam, 'topic', None), 'curriculum', None), 'name', None)
+    except Exception:
+        pass
+    if not exam_title:
+        exam_title = snapshot.get('exam_title')
+    if not topic_name:
+        topic_name = snapshot.get('topic_name')
+    if not curriculum_name:
+        curriculum_name = snapshot.get('curriculum_name')
+
     return DRFResponse({
         'responses': res, 
         'score': attempt.total_score, 
@@ -976,8 +1220,14 @@ def review_attempt(request, attempt_id):
         'evaluated_pdf': evaluated_pdf,
         'evaluated_pdf_url': evaluated_pdf_url,
         'missing_submission_upload': missing_submission_upload,
-        'exam_title': attempt.exam.title,
-        'duration_seconds': attempt.duration_seconds
+        'exam_title': exam_title,
+        'topic_name': topic_name,
+        'curriculum_name': curriculum_name,
+        'duration_seconds': attempt.duration_seconds,
+        'rank': attempt.rank,
+        'percentile': attempt.percentile,
+        'grades_finalized': grades_finalized,
+        'exam_snapshot': snapshot,
     }, status=status.HTTP_200_OK)
 
 
@@ -1095,6 +1345,13 @@ def upload_attempt_submission(request, attempt_id):
     if not is_privileged and attempt.user_id != request.user.id:
         return DRFResponse({'detail': 'Not allowed.'}, status=status.HTTP_403_FORBIDDEN)
 
+    # Enforce deadline for student uploads.
+    if not is_privileged:
+        expires_at_dt = _attempt_expires_at(attempt)
+        if expires_at_dt and timezone.now() >= expires_at_dt:
+            _mark_attempt_timedout(attempt, expires_at_dt)
+            return DRFResponse({'detail': 'Attempt timed out. Upload window has ended.'}, status=status.HTTP_410_GONE)
+
     files = request.FILES.getlist('files')
     if not files:
         f = request.FILES.get('file')
@@ -1143,6 +1400,11 @@ def grade_response(request, response_id):
     if not _is_teacher_or_admin(request.user):
         return DRFResponse({'detail': 'Only teachers/admins can grade responses.'}, status=status.HTTP_403_FORBIDDEN)
     resp = get_object_or_404(Response, pk=response_id)
+
+    attempt = resp.attempt
+    meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
+    if meta.get('grades_finalized') is True:
+        return DRFResponse({'detail': 'Grades have been finalized and cannot be edited.'}, status=status.HTTP_409_CONFLICT)
     teacher_mark = request.data.get('teacher_mark')
     remarks = request.data.get('remarks', '')
     
@@ -1168,8 +1430,7 @@ def grade_response(request, response_id):
                     return DRFResponse({'detail': f'teacher_mark cannot exceed {max_marks}.'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Store remarks in attempt metadata
-    attempt = resp.attempt
-    meta = attempt.metadata or {}
+    meta = attempt.metadata if isinstance(attempt.metadata, dict) else {}
     meta.setdefault('teacher_remarks', {})[str(resp.question_id)] = remarks
     attempt.metadata = meta
     attempt.save(update_fields=['metadata'])
@@ -1177,11 +1438,21 @@ def grade_response(request, response_id):
     resp.save()
 
     # Recompute the attempt score so student/teacher views stay consistent.
+    # (Do not finalize rank here; rank becomes stable only after finalization.)
     try:
-        attempt.calculate_score()
-        attempt.calculate_percentile()
+        total_marks = 0.0
+        total_score = 0.0
+        for r in Response.objects.filter(attempt=attempt).select_related('question'):
+            total_marks += float(r.question.marks or 0)
+            q_score = r.teacher_mark if r.teacher_mark is not None else (float(r.question.marks or 0) if r.correct else 0.0)
+            total_score += float(q_score or 0.0)
+        attempt.total_score = float(total_score)
+        attempt.percentage = round((float(total_score) / float(total_marks)) * 100.0, 2) if total_marks else 0.0
+        attempt.rank = None
+        attempt.save(update_fields=['total_score', 'percentage', 'rank'])
     except Exception:
         pass
+
     return DRFResponse({'status': 'graded', 'teacher_mark': resp.teacher_mark}, status=status.HTTP_200_OK)
 
 

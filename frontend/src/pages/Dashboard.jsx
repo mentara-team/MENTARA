@@ -470,6 +470,21 @@ const Dashboard = () => {
                 ) : (
                   <>
                     <div className="text-2xl font-bold text-text mb-2 truncate">{latestAttempt.exam_title || 'Your last test'}</div>
+                    {(latestAttempt?.curriculum_name || latestAttempt?.topic_name) ? (
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary mb-2">
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface/40 border border-elevated/50">
+                          {latestAttempt.curriculum_name || '—'}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface/40 border border-elevated/50">
+                          {latestAttempt.topic_name || '—'}
+                        </span>
+                        {Number.isFinite(Number(latestAttempt?.rank)) ? (
+                          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary">
+                            Rank #{latestAttempt.rank}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface/40 border border-elevated/50">
                         <span className={`w-2 h-2 rounded-full ${latestAttempt.status === 'inprogress' ? 'bg-primary' : 'bg-accent'}`} />

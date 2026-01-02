@@ -118,10 +118,44 @@ const TopicManager = () => {
     }
   };
 
+  const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
+    return new Promise((resolve) => {
+      toast((t) => (
+        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[min(92vw,520px)]">
+          <div className="text-sm font-semibold text-text whitespace-pre-line">{message}</div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(false);
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(true);
+              }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      ), { duration: Infinity });
+    });
+  };
+
   const handleDelete = async (topicId) => {
-    if (!window.confirm('Are you sure you want to delete this topic? This will also delete all subtopics and associated content.')) {
-      return;
-    }
+    const ok = await confirmToast(
+      'Are you sure you want to delete this topic? This will also delete all subtopics and associated content.',
+      { confirmText: 'Delete' }
+    );
+    if (!ok) return;
     try {
       await api.delete(`topics/${topicId}/`);
       toast.success('Topic deleted successfully!');

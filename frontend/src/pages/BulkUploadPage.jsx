@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/bulk-upload.css';
+import toast from 'react-hot-toast';
 
 const BASE_API = import.meta.env.VITE_BASE_API || '/api';
 const getToken = () => localStorage.getItem('access_token');
@@ -14,7 +15,7 @@ function BulkUploadPage() {
 
   async function handleUpload() {
     if (!csvFile) {
-      alert('Please select a CSV file');
+      toast.error('Please select a CSV file');
       return;
     }
 
@@ -35,11 +36,11 @@ function BulkUploadPage() {
       setResult(data);
       
       if (data.created_count > 0) {
-        alert(`Successfully created ${data.created_count} questions!`);
+        toast.success(`Successfully created ${data.created_count} questions!`);
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Upload failed');
+      toast.error('Upload failed');
     } finally {
       setUploading(false);
     }

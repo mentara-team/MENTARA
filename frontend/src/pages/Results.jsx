@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { 
   Award, TrendingUp, Clock, Target, Home, Download,
@@ -14,13 +13,21 @@ import StudentNav from '../components/layout/StudentNav';
 const Results = () => {
   const { attemptId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
-  const [evaluation, setEvaluation] = useState(null);
   const [needsGrading, setNeedsGrading] = useState(false);
   const [requiresTeacherGrading, setRequiresTeacherGrading] = useState(false);
+
+  const API_BASE = (api?.defaults?.baseURL || '').replace(/\/+$/, '');
+  const BACKEND_ORIGIN = API_BASE.replace(/\/?api\/?$/, '');
+  const resolveMediaUrl = (maybeUrl) => {
+    if (!maybeUrl) return null;
+    if (typeof maybeUrl !== 'string') return null;
+    if (/^https?:\/\//i.test(maybeUrl)) return maybeUrl;
+    if (maybeUrl.startsWith('/')) return `${BACKEND_ORIGIN}${maybeUrl}`;
+    return `${BACKEND_ORIGIN}/${maybeUrl}`;
+  };
 
   useEffect(() => {
     loadResults();
@@ -71,13 +78,21 @@ const Results = () => {
       setResult({
         score: scorePercent,
         exam_title: review.exam_title || attempt.exam?.title || 'Test',
+        curriculum_name: review.curriculum_name || attempt.exam?.topic?.curriculum?.name || null,
+        topic_name: review.topic_name || attempt.exam?.topic?.name || null,
+        rank: review.rank ?? attempt.rank ?? null,
+        percentile: review.percentile ?? attempt.percentile ?? null,
+        grades_finalized: Boolean(review.grades_finalized),
+        evaluated_pdf_url: review.evaluated_pdf_url || null,
+        evaluated_pdf: review.evaluated_pdf || null,
+        student_uploads: Array.isArray(review.student_uploads) ? review.student_uploads : [],
         correct_answers: correctAnswers,
         incorrect_answers: incorrectAnswers,
         unanswered: unanswered,
         total_questions: totalQuestions,
         total_gradable_questions: totalGradableQuestions,
         time_taken: attempt.duration_seconds || 0,
-        responses: review.responses || [],
+        responses,
         total_score: review.score || 0,
         total_possible: review.total || 0
       });
@@ -170,6 +185,9 @@ const Results = () => {
     );
   }
 
+  const hasEvaluatedPdf = Boolean(result?.evaluated_pdf_url || result?.evaluated_pdf);
+  const evaluatedPdfUrl = resolveMediaUrl(result?.evaluated_pdf_url || result?.evaluated_pdf);
+
   return (
     <AppShell
       brandTitle="Mentara"
@@ -215,7 +233,35 @@ const Results = () => {
             </h2>
             <p className="text-text-secondary mb-6">
               {result.exam_title}
+              {(result?.curriculum_name || result?.topic_name) ? (
+                <span className="block mt-1 text-sm">
+                  <span className="font-semibold text-text">{result.curriculum_name || '—'}</span>
+                  <span className="mx-2">•</span>
+                  <span className="font-semibold text-text">{result.topic_name || '—'}</span>
+                </span>
+              ) : null}
             </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+              {result?.grades_finalized ? (
+                <span className="px-4 py-2 rounded-full bg-accent/20 text-accent border border-accent/20 text-sm font-semibold">
+                  Final grades published
+                </span>
+              ) : (
+                <span className="px-4 py-2 rounded-full bg-surface border border-elevated text-sm font-semibold text-text-secondary">
+                  Provisional
+                </span>
+              )}
+              {Number.isFinite(Number(result?.rank)) ? (
+                <span className="px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20 text-sm font-semibold">
+                  Rank #{result.rank}
+                </span>
+              ) : (
+                <span className="px-4 py-2 rounded-full bg-surface border border-elevated text-sm font-semibold text-text-secondary">
+                  Rank —
+                </span>
+              )}
+            </div>
 
             <div className="flex items-center justify-center gap-8 mb-6">
               <div>
@@ -303,8 +349,8 @@ const Results = () => {
           </motion.div>
         </div>
 
-        {/* Teacher Feedback (if evaluated) */}
-        {evaluation && (
+        {/* Teacher Feedback */}
+        {(hasEvaluatedPdf || (Array.isArray(result?.student_uploads) && result.student_uploads.length > 0)) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -313,25 +359,58 @@ const Results = () => {
           >
             <h3 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
-              Teacher Feedback
+              Teacher Feedback & Files
             </h3>
-            
-            <div className="prose prose-invert max-w-none">
-              <p className="text-text-secondary whitespace-pre-wrap">
-                {evaluation.teacher_comments || 'No feedback provided yet.'}
-              </p>
-            </div>
 
-            {evaluation.evaluated_answer_file && (
-              <div className="mt-4 pt-4 border-t border-elevated">
-                <a
-                  href={evaluation.evaluated_answer_file}
-                  download
-                  className="btn-secondary inline-flex items-center"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Evaluated Paper
-                </a>
+            {Array.isArray(result?.student_uploads) && result.student_uploads.length > 0 ? (
+              <div className="mb-4">
+                <div className="text-sm font-semibold text-text mb-2">Your submission</div>
+                <div className="space-y-2">
+                  {result.student_uploads.map((u, idx) => (
+                    <a
+                      key={`${u.path || ''}_${idx}`}
+                      href={resolveMediaUrl(u.url || u.path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block p-3 rounded-xl bg-surface/40 border border-elevated/50 hover:bg-elevated transition-colors"
+                    >
+                      <div className="text-sm font-semibold text-text truncate">{u.name || u.path}</div>
+                      {u.uploaded_at && <div className="text-xs text-text-secondary">{u.uploaded_at}</div>}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {hasEvaluatedPdf ? (
+              <div className="pt-4 border-t border-elevated">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <div className="text-sm font-semibold text-text">Evaluated paper</div>
+                    <div className="text-xs text-text-secondary truncate">{result?.evaluated_pdf || ''}</div>
+                  </div>
+                  <a
+                    href={evaluatedPdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary inline-flex items-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Open / Download
+                  </a>
+                </div>
+
+                <div className="rounded-xl overflow-hidden border border-elevated/50 bg-surface">
+                  <iframe
+                    title="Evaluated PDF"
+                    src={evaluatedPdfUrl}
+                    className="w-full h-[520px]"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-text-secondary">
+                Evaluated paper not uploaded.
               </div>
             )}
           </motion.div>
@@ -350,49 +429,69 @@ const Results = () => {
           </h3>
 
           <div className="space-y-4">
-            {result.answers && result.answers.map((answer, index) => (
-              <div key={index} className="p-4 rounded-xl bg-surface">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      answer.is_correct ? 'bg-accent/20' : 'bg-danger/20'
-                    }`}>
-                      {answer.is_correct ? (
-                        <CheckCircle className="w-5 h-5 text-accent" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-danger" />
-                      )}
+            {(Array.isArray(result?.responses) ? result.responses : []).map((r, index) => {
+              const qType = String(r?.question_type || '').toUpperCase();
+              const isStruct = qType.startsWith('STRUCT');
+              const correct = r?.correct;
+              const statusLabel = isStruct ? 'Teacher graded' : (correct === true ? 'Correct' : (correct === false ? 'Incorrect' : '—'));
+              const statusTone = isStruct ? 'bg-primary/10 text-primary border-primary/20'
+                : (correct === true ? 'bg-accent/20 text-accent border-accent/20'
+                  : (correct === false ? 'bg-danger/20 text-danger border-danger/20' : 'bg-surface text-text-secondary border-elevated'));
+
+              const marksObtained = Number.isFinite(Number(r?.marks_obtained)) ? Number(r.marks_obtained) : null;
+              const totalMarks = Number.isFinite(Number(r?.total_marks)) ? Number(r.total_marks) : null;
+              const answerText = isStruct
+                ? ((Array.isArray(result?.student_uploads) && result.student_uploads.length > 0)
+                  ? 'Uploaded submission available (see Teacher Feedback & Files).'
+                  : '—')
+                : (r?.answer === null || r?.answer === undefined ? '—' : JSON.stringify(r.answer));
+
+              return (
+                <div key={r?.response_id || r?.question_id || index} className="p-4 rounded-xl bg-surface">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                        correct === true ? 'bg-accent/20' : (correct === false ? 'bg-danger/20' : 'bg-primary/10')
+                      }`}>
+                        {correct === true ? (
+                          <CheckCircle className="w-5 h-5 text-accent" />
+                        ) : correct === false ? (
+                          <XCircle className="w-5 h-5 text-danger" />
+                        ) : (
+                          <Circle className="w-5 h-5 text-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-text">Question {index + 1}</p>
+                        <p className="text-sm text-text-secondary">
+                          {marksObtained !== null && totalMarks !== null ? `${marksObtained} / ${totalMarks} marks` : (totalMarks !== null ? `${totalMarks} marks` : '—')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${statusTone}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  <p className="text-text mb-3 whitespace-pre-wrap">{r?.statement || '—'}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-text-secondary mb-1">Your Answer:</p>
+                      <p className="font-semibold text-text whitespace-pre-wrap break-words">
+                        {answerText}
+                      </p>
                     </div>
                     <div>
-                      <p className="font-semibold text-text">Question {index + 1}</p>
-                      <p className="text-sm text-text-secondary">{answer.marks} marks</p>
+                      <p className="text-text-secondary mb-1">Teacher remarks:</p>
+                      <p className="font-semibold text-text whitespace-pre-wrap break-words">
+                        {r?.remarks ? r.remarks : '—'}
+                      </p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    answer.is_correct ? 'bg-accent/20 text-accent' : 'bg-danger/20 text-danger'
-                  }`}>
-                    {answer.is_correct ? 'Correct' : 'Incorrect'}
-                  </span>
                 </div>
-
-                <p className="text-text mb-3">{answer.question_text}</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-text-secondary mb-1">Your Answer:</p>
-                    <p className={`font-semibold ${answer.is_correct ? 'text-accent' : 'text-danger'}`}>
-                      {answer.user_answer || 'Not answered'}
-                    </p>
-                  </div>
-                  {!answer.is_correct && answer.correct_answer && (
-                    <div>
-                      <p className="text-text-secondary mb-1">Correct Answer:</p>
-                      <p className="font-semibold text-accent">{answer.correct_answer}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
 
