@@ -65,6 +65,7 @@ class ExamSerializer(serializers.ModelSerializer):
     attempts_count = serializers.SerializerMethodField()
     attempt_count = serializers.SerializerMethodField()  # Alias for frontend compatibility
     duration = serializers.SerializerMethodField()  # Convert seconds to minutes
+    has_struct_questions = serializers.SerializerMethodField()
     
     class Meta:
         model = Exam
@@ -105,6 +106,12 @@ class ExamSerializer(serializers.ModelSerializer):
         """Convert duration_seconds to minutes"""
         return obj.duration_seconds // 60
 
+    def get_has_struct_questions(self, obj):
+        try:
+            return obj.exam_questions.filter(question__type='STRUCT').exists()
+        except Exception:
+            return False
+
     def validate(self, attrs):
         # level is a non-null CharField in the model (blank allowed). Some clients
         # may send null when curriculum is non-IB; normalize that to ''.
@@ -114,6 +121,17 @@ class ExamSerializer(serializers.ModelSerializer):
         # paper_number can be null; normalize empty-string to null.
         if attrs.get('paper_number', serializers.empty) == '':
             attrs['paper_number'] = None
+
+        # passing_marks is optional; normalize empty-string to null.
+        if attrs.get('passing_marks', serializers.empty) == '':
+            attrs['passing_marks'] = None
+
+        # answer_type is optional; normalize null/"auto"/"all" to ''.
+        at = attrs.get('answer_type', serializers.empty)
+        if at is None:
+            attrs['answer_type'] = ''
+        elif isinstance(at, str) and at.strip().lower() in ('auto', 'all'):
+            attrs['answer_type'] = ''
         return attrs
 
     # Back-compat: legacy data stored level/paper in title. Prefer explicit fields.
@@ -142,6 +160,7 @@ class ExamDetailSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     topic_name = serializers.SerializerMethodField()
     curriculum_name = serializers.SerializerMethodField()
+    has_struct_questions = serializers.SerializerMethodField()
     
     class Meta:
         model = Exam
@@ -164,6 +183,12 @@ class ExamDetailSerializer(serializers.ModelSerializer):
         t = getattr(obj, 'topic', None)
         c = getattr(t, 'curriculum', None) if t is not None else None
         return getattr(c, 'name', '') or ''
+
+    def get_has_struct_questions(self, obj):
+        try:
+            return obj.exam_questions.filter(question__type='STRUCT').exists()
+        except Exception:
+            return False
 
 
 class ResponseSerializer(serializers.ModelSerializer):

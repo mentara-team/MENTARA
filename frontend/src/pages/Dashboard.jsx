@@ -306,9 +306,9 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="card-elevated p-0 overflow-hidden">
           <div className="relative p-6 sm:p-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-accent/10" />
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-primary/5" />
             <div className="absolute -top-28 -right-28 w-[520px] h-[520px] rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute -bottom-28 -left-28 w-[520px] h-[520px] rounded-full bg-accent/10 blur-3xl" />
+            <div className="absolute -bottom-28 -left-28 w-[520px] h-[520px] rounded-full bg-primary/10 blur-3xl" />
             <img
               src="/marketing/hero-home.svg"
               alt=""
@@ -388,7 +388,7 @@ const Dashboard = () => {
             <BookOpen className="w-5 h-5" />
           </div>
           <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-            <div className="h-full w-2/3 bg-gradient-to-r from-primary to-accent" />
+            <div className="h-full w-2/3 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
           </div>
         </motion.button>
 
@@ -407,7 +407,7 @@ const Dashboard = () => {
             <Play className="w-5 h-5" />
           </div>
           <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-            <div className="h-full w-1/2 bg-gradient-to-r from-primary to-accent" />
+            <div className="h-full w-1/2 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
           </div>
         </motion.button>
 
@@ -426,7 +426,7 @@ const Dashboard = () => {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-primary to-accent" />
+            <div className="h-full w-1/3 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
           </div>
         </motion.button>
       </div>
@@ -439,7 +439,7 @@ const Dashboard = () => {
       >
         <div className="card-elevated p-0 overflow-hidden">
           <div className="relative p-6 sm:p-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/12 via-surface/0 to-accent/12" />
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/12 via-surface/0 to-primary/8" />
             <motion.div
               aria-hidden="true"
               className="absolute -top-14 -right-14 w-56 h-56 rounded-full bg-primary/15 blur-3xl"
@@ -448,7 +448,7 @@ const Dashboard = () => {
             />
             <motion.div
               aria-hidden="true"
-              className="absolute -bottom-16 -left-14 w-64 h-64 rounded-full bg-accent/15 blur-3xl"
+              className="absolute -bottom-16 -left-14 w-64 h-64 rounded-full bg-primary/15 blur-3xl"
               animate={{ y: [0, 12, 0], x: [0, -6, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
             />
@@ -487,7 +487,7 @@ const Dashboard = () => {
                     ) : null}
                     <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface/40 border border-elevated/50">
-                        <span className={`w-2 h-2 rounded-full ${latestAttempt.status === 'inprogress' ? 'bg-primary' : 'bg-accent'}`} />
+                        <span className={`w-2 h-2 rounded-full ${latestAttempt.status === 'inprogress' ? 'bg-primary' : 'bg-success'}`} />
                         {latestAttempt.status === 'inprogress' ? 'In progress' : 'Completed'}
                       </span>
                       {latestAttempt.status === 'inprogress' && (
@@ -552,7 +552,7 @@ const Dashboard = () => {
 
       <div className="card-elevated p-0 overflow-hidden mb-10">
         <div className="relative p-6 sm:p-8">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-accent/10" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-primary/5" />
           <img
             src="/marketing/hero-results.svg"
             alt=""
@@ -612,7 +612,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="h-1 w-full rounded-full bg-surface overflow-hidden">
-              <div className="h-full w-1/2 bg-gradient-to-r from-primary to-accent" />
+              <div className="h-full w-1/2 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
             </div>
           </motion.div>
         ))}
@@ -671,7 +671,7 @@ const Dashboard = () => {
                       </div>
                       <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                          className="h-full bg-gradient-to-r from-primary via-primary/70 to-primary/40 rounded-full"
                           style={{ width: `${Math.max(0, Math.min(100, t.accuracy_pct || 0))}%` }}
                         />
                       </div>
@@ -764,7 +764,7 @@ const Dashboard = () => {
                   </div>
                   <div className="p-4 rounded-2xl bg-surface/40 border border-elevated/50">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                         <TrendingUp className="w-5 h-5 text-primary" />
                       </div>
                       <div>
@@ -822,7 +822,7 @@ const Dashboard = () => {
                   </div>
                   <div className="w-full h-2 bg-bg rounded-full overflow-hidden border border-elevated/50">
                     <div
-                      className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                      className="h-full bg-gradient-to-r from-primary via-primary/70 to-primary/40 rounded-full"
                       style={{ width: `${weeklyPct}%` }}
                     />
                   </div>

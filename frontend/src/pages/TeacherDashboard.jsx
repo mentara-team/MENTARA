@@ -331,7 +331,7 @@ function TeacherDashboard() {
         </div>
       </div>
       <div className="h-1 w-full rounded-full bg-surface overflow-hidden">
-        <div className="h-full w-1/2 bg-gradient-to-r from-primary to-accent" />
+        <div className="h-full w-1/2 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
       </div>
     </div>
   );
@@ -344,14 +344,9 @@ function TeacherDashboard() {
       right={(
         <>
           <ThemeToggle />
-          <button onClick={loadTeacherDashboard} className="btn-secondary text-sm" disabled={loading}>
+          <button onClick={loadTeacherDashboard} className="btn-secondary text-sm hidden sm:inline-flex" disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
-          <Link to="/teacher/exams" className="btn-secondary text-sm">
-            <FileText className="w-4 h-4 inline-block mr-2" />
-            Manage Exams
-          </Link>
-
           <div className="hidden sm:flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
@@ -364,18 +359,27 @@ function TeacherDashboard() {
         </>
       )}
     >
+        <div className="sm:hidden mb-6">
+          <div className="card-elevated flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-text truncate">{user?.first_name} {user?.last_name}</div>
+              <div className="text-xs text-text-secondary truncate">{user?.email}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn-secondary text-sm" onClick={loadTeacherDashboard} disabled={loading}>
+                {loading ? 'Loading…' : 'Refresh'}
+              </button>
+              <button onClick={handleLogout} className="btn-secondary text-sm">Logout</button>
+            </div>
+          </div>
+        </div>
+
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="card-elevated p-0 overflow-hidden">
             <div className="relative p-6 sm:p-8">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-accent/10" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-primary/5" />
               <div className="absolute -top-28 -right-28 w-[520px] h-[520px] rounded-full bg-primary/10 blur-3xl" />
-              <div className="absolute -bottom-28 -left-28 w-[520px] h-[520px] rounded-full bg-accent/10 blur-3xl" />
-              <img
-                src="/marketing/hero-team.svg"
-                alt=""
-                className="hidden lg:block absolute right-6 bottom-0 w-[360px] opacity-35 pointer-events-none select-none"
-                draggable="false"
-              />
+              <div className="absolute -bottom-28 -left-28 w-[520px] h-[520px] rounded-full bg-primary/10 blur-3xl" />
 
               <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                 <div className="min-w-0">
@@ -405,11 +409,11 @@ function TeacherDashboard() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                  <Link to="/teacher/exams" className="btn-primary w-full sm:w-auto">
+                  <Link to="/teacher/exams" className="btn-primary btn-icon text-sm w-full sm:w-auto">
                     <FileText className="w-4 h-4 inline-block mr-2" />
                     Manage Exams
                   </Link>
-                  <button onClick={loadTeacherDashboard} className="btn-secondary w-full sm:w-auto">
+                  <button onClick={loadTeacherDashboard} className="btn-secondary btn-icon text-sm w-full sm:w-auto">
                     Refresh Data
                   </button>
                 </div>
@@ -430,10 +434,12 @@ function TeacherDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          <button
+          <motion.button
             type="button"
             onClick={() => navigate('/teacher/exams')}
-            className="card-elevated text-left hover:border-primary/30 hover:bg-surface/10 transition-colors"
+            whileHover={{ y: -4 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            className="card-elevated text-left hover:border-primary/30 hover:bg-surface/30 transition-colors"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -443,14 +449,16 @@ function TeacherDashboard() {
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-              <div className="h-full w-2/3 bg-gradient-to-r from-primary to-accent" />
+              <div className="h-full w-2/3 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
             </div>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
             onClick={() => document.getElementById('pending-grading')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="card-elevated text-left hover:border-warning/40 hover:bg-surface/10 transition-colors"
+            whileHover={{ y: -4 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            className="card-elevated text-left hover:border-warning/40 hover:bg-surface/30 transition-colors"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -460,14 +468,16 @@ function TeacherDashboard() {
               <ClipboardCheck className="w-5 h-5 text-warning" />
             </div>
             <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-              <div className="h-full w-1/2 bg-gradient-to-r from-warning to-accent" />
+              <div className="h-full w-1/2 bg-gradient-to-r from-warning via-warning/70 to-warning/40" />
             </div>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
             onClick={() => document.getElementById('students-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="card-elevated text-left hover:border-primary/30 hover:bg-surface/10 transition-colors"
+            whileHover={{ y: -4 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+            className="card-elevated text-left hover:border-primary/30 hover:bg-surface/30 transition-colors"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -477,9 +487,9 @@ function TeacherDashboard() {
               <Users className="w-5 h-5 text-primary" />
             </div>
             <div className="mt-4 h-1 w-full rounded-full bg-surface overflow-hidden">
-              <div className="h-full w-1/3 bg-gradient-to-r from-primary to-accent" />
+              <div className="h-full w-1/3 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
             </div>
-          </button>
+          </motion.button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -505,7 +515,7 @@ function TeacherDashboard() {
                       </div>
                       <div className="mt-2 h-1.5 w-full rounded-full bg-surface overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary to-accent"
+                          className="h-full bg-gradient-to-r from-primary via-primary/70 to-primary/40"
                           style={{ width: `${Math.min(100, Math.max(0, Number(row.avg_percentage) || 0))}%` }}
                         />
                       </div>

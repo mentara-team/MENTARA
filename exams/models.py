@@ -83,11 +83,13 @@ class Exam(TimeStamped):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     topic = models.ForeignKey(Topic, on_delete=models.PROTECT, related_name='exams')
+    # Optional explicit answer type for exams. When blank, type is inferred from attached questions.
+    answer_type = models.CharField(max_length=12, choices=QUESTION_TYPES, blank=True, default='')
     level = models.CharField(max_length=10, blank=True, default='')  # HL/SL or blank
     paper_number = models.PositiveSmallIntegerField(null=True, blank=True)  # 1/2/3 or null
     duration_seconds = models.PositiveIntegerField(default=3600)
     total_marks = models.FloatField(default=0)
-    passing_marks = models.FloatField(default=40)
+    passing_marks = models.FloatField(null=True, blank=True, default=40)
     shuffle_questions = models.BooleanField(default=True)
     visibility = models.CharField(max_length=20, default='PUBLIC')  # PUBLIC/PREMIUM/PRIVATE
     instructions = models.TextField(blank=True)

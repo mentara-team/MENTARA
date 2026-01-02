@@ -83,6 +83,7 @@ const ExamManagerNew = () => {
   const [topicMeta, setTopicMeta] = useState({ isIb: false, isComplete: false, pathLabel: '' });
   const [questionFilterTopicId, setQuestionFilterTopicId] = useState('');
   const [questionFilterMeta, setQuestionFilterMeta] = useState({ isIb: false, isComplete: false, pathLabel: '' });
+  const [questionFilterType, setQuestionFilterType] = useState('all');
   const [loading, setLoading] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
 
@@ -140,7 +141,8 @@ const ExamManagerNew = () => {
     paper_number: '',
     duration_minutes: 60,
     total_marks: 100,
-    passing_marks: 40,
+    passing_marks: '',
+    answer_type: '',
     status: 'DRAFT',
     scheduled_date: '',
     instructions: ''
@@ -206,9 +208,22 @@ const ExamManagerNew = () => {
     }
   };
 
-  const backendPayloadFromForm = (data) => {
+  const backendPayloadFromForm = (data, { isStructExam = false } = {}) => {
     const minutes = Number(data.duration_minutes || 0);
     const duration_seconds = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : 3600;
+
+    const totalMarksRaw = data.total_marks;
+    const total_marks = totalMarksRaw === '' || totalMarksRaw == null ? 0 : Number(totalMarksRaw);
+
+    const passingMarksRaw = data.passing_marks;
+    const passing_marks =
+      !isStructExam
+        ? null
+        : passingMarksRaw === '' || passingMarksRaw == null
+          ? null
+          : Number(passingMarksRaw);
+
+    const answer_type = (data.answer_type || '').toString();
 
     const paperNumberRaw = data.paper_number;
     const paperNumberParsed = Number.parseInt(String(paperNumberRaw), 10);
@@ -246,8 +261,9 @@ const ExamManagerNew = () => {
       level: isIb ? (data.level || '') : '',
       paper_number: isIb ? paper_number : null,
       duration_seconds,
-      total_marks: data.total_marks,
-      passing_marks: data.passing_marks,
+      total_marks,
+      passing_marks,
+      answer_type,
       instructions: data.instructions,
       visibility,
       is_active,
@@ -266,7 +282,8 @@ const ExamManagerNew = () => {
         toast.error('Please select the deepest sub-topic (complete the full hierarchy).');
         return;
       }
-      const payload = backendPayloadFromForm(formData);
+      const isStructExam = String(formData.answer_type || '').toUpperCase() === 'STRUCT';
+      const payload = backendPayloadFromForm(formData, { isStructExam });
       await api.post('exams/', payload);
       toast.success('✨ Exam created successfully!');
       setShowCreateModal(false);
@@ -291,7 +308,9 @@ const ExamManagerNew = () => {
         toast.error('Please select the deepest sub-topic (complete the full hierarchy).');
         return;
       }
-      const payload = backendPayloadFromForm(formData);
+      const isStructExam =
+        String(formData.answer_type || '').toUpperCase() === 'STRUCT' || Boolean(selectedExam?.has_struct_questions);
+      const payload = backendPayloadFromForm(formData, { isStructExam });
       await api.put(`exams/${selectedExam.id}/`, payload);
       toast.success('✨ Exam updated successfully!');
       setShowEditModal(false);
@@ -326,6 +345,8 @@ const ExamManagerNew = () => {
 
   const handleDuplicate = async (exam) => {
     try {
+      const isStructExam =
+        String(exam?.answer_type || '').toUpperCase() === 'STRUCT' || Boolean(exam?.has_struct_questions);
       const duplicateData = {
         title: `${exam.title} (Copy)`,
         description: exam.description || '',
@@ -337,13 +358,35 @@ const ExamManagerNew = () => {
             ? exam.duration_seconds
             : Math.round(Number(exam.duration_minutes || 60) * 60),
         total_marks: exam.total_marks,
-        passing_marks: exam.passing_marks,
+        passing_marks: isStructExam ? exam.passing_marks : null,
+        answer_type: exam.answer_type || '',
         instructions: exam.instructions || '',
         visibility: 'PRIVATE',
         is_active: true,
         shuffle_questions: true,
       };
-      await api.post('exams/', duplicateData);
+      const res = await api.post('exams/', duplicateData);
+      const newExamId = res?.data?.id;
+
+      // Copy attached questions (and their order) if possible.
+      if (newExamId && exam?.id) {
+        try {
+          const qRes = await api.get(`exams/${exam.id}/questions/`);
+          const items = Array.isArray(qRes?.data?.questions) ? qRes.data.questions : [];
+          const orderedQuestionIds = items
+            .map((it) => it?.question_id)
+            .filter((qid) => qid != null);
+
+          if (orderedQuestionIds.length) {
+            await api.post(`exams/${newExamId}/add-questions/`, { question_ids: orderedQuestionIds });
+            await api.post(`exams/${newExamId}/questions/reorder/`, { ordered_question_ids: orderedQuestionIds });
+          }
+        } catch (err) {
+          // Non-fatal: exam is duplicated; questions can be added manually.
+          console.warn('Duplicate created but failed to copy questions:', err);
+        }
+      }
+
       toast.success('✨ Exam duplicated successfully!');
       fetchData();
     } catch (error) {
@@ -462,6 +505,7 @@ const ExamManagerNew = () => {
       duration_minutes: exam.duration_minutes,
       total_marks: exam.total_marks,
       passing_marks: exam.passing_marks,
+      answer_type: exam.answer_type || '',
       status: exam.status,
       scheduled_date: exam.scheduled_date || '',
       instructions: exam.instructions || ''
@@ -474,6 +518,7 @@ const ExamManagerNew = () => {
     setSelectedQuestions([]);
     setQuestionFilterTopicId(exam?.topic ? String(exam.topic) : '');
     setQuestionFilterMeta({ isIb: false, isComplete: false, pathLabel: '' });
+    setQuestionFilterType(exam?.answer_type ? String(exam.answer_type) : 'all');
     setShowQuestionModal(true);
   };
 
@@ -554,9 +599,11 @@ const ExamManagerNew = () => {
 
   const filteredQuestionsForModal = useMemo(() => {
     const filterTopic = questionFilterTopicId ? String(questionFilterTopicId) : '';
-    if (!filterTopic) return questions;
-    return (questions || []).filter((q) => isTopicInSubtree(q?.topic, filterTopic));
-  }, [questions, questionFilterTopicId]);
+    const filterType = (questionFilterType || 'all').toString().toUpperCase();
+    const base = filterTopic ? (questions || []).filter((q) => isTopicInSubtree(q?.topic, filterTopic)) : (questions || []);
+    if (!filterType || filterType === 'ALL') return base;
+    return base.filter((q) => String(q?.type ?? q?.question_type ?? '').toUpperCase() === filterType);
+  }, [questions, questionFilterTopicId, questionFilterType]);
 
   const openPreviewModal = (exam) => {
     setSelectedExam(exam);
@@ -578,7 +625,8 @@ const ExamManagerNew = () => {
       paper_number: '',
       duration_minutes: 60,
       total_marks: 100,
-      passing_marks: 40,
+      passing_marks: '',
+      answer_type: '',
       status: 'DRAFT',
       scheduled_date: '',
       instructions: ''
@@ -1007,17 +1055,45 @@ const ExamManagerNew = () => {
 
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">
-              Passing Marks *
+              Answer Type
+            </label>
+            <select
+              value={formData.answer_type}
+              onChange={(e) => {
+                const next = e.target.value;
+                setFormData((p) => ({
+                  ...p,
+                  answer_type: next,
+                  // If switching away from STRUCT, clear passing marks.
+                  passing_marks: String(next).toUpperCase() === 'STRUCT' ? p.passing_marks : '',
+                }));
+              }}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+              aria-label="Select answer type"
+            >
+              <option value="">Auto (based on questions)</option>
+              <option value="MCQ">MCQ</option>
+              <option value="MULTI">Multi-select</option>
+              <option value="FIB">Fill-in-blank</option>
+              <option value="STRUCT">Structured</option>
+            </select>
+          </div>
+
+          {(String(formData.answer_type || '').toUpperCase() === 'STRUCT' || Boolean(selectedExam?.has_struct_questions)) && (
+            <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Passing Marks (Optional)
             </label>
             <input
               type="number"
-              required
               min="0"
-              value={formData.passing_marks}
+              value={formData.passing_marks ?? ''}
               onChange={(e) => setFormData({ ...formData, passing_marks: e.target.value })}
+              placeholder="Leave blank for none"
               className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
             />
-          </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-gray-300 mb-2">
@@ -1111,6 +1187,24 @@ const ExamManagerNew = () => {
                 Showing: <span className="text-gray-200">{questionFilterMeta.pathLabel}</span> (including sub-topics)
               </div>
             )}
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Filter Questions by Type
+            </label>
+            <select
+              value={questionFilterType}
+              onChange={(e) => setQuestionFilterType(e.target.value)}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+              aria-label="Filter questions by type"
+            >
+              <option value="all">All types</option>
+              <option value="MCQ">MCQ</option>
+              <option value="MULTI">Multi-select</option>
+              <option value="FIB">Fill-in-blank</option>
+              <option value="STRUCT">Structured</option>
+            </select>
           </div>
         </div>
 

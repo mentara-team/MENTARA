@@ -70,6 +70,7 @@ export default function HierarchyTopicSelector({
   const [treeLoading, setTreeLoading] = useState(false);
 
   const skipClearOnCurriculumChangeRef = useRef(false);
+  const initialCurriculumLoadRef = useRef(true);
 
   // selections represent the chosen node at each depth level (root->leaf)
   const [selections, setSelections] = useState([]); // array of string ids
@@ -157,11 +158,16 @@ export default function HierarchyTopicSelector({
       }
     })();
 
-    // Reset selection path on curriculum change (but don't clear when we auto-switch
-    // to match an existing selected topic during edit flows).
+    // Reset selection path on curriculum change.
+    // Important: during edit flows, a controlled `value` may already be set. We must not
+    // eagerly clear it on the very first curriculum load, otherwise the parent loses
+    // the topic id before we can auto-detect the correct curriculum.
+    const isInitialLoad = initialCurriculumLoadRef.current;
+    if (isInitialLoad) initialCurriculumLoadRef.current = false;
+
     if (skipClearOnCurriculumChangeRef.current) {
       skipClearOnCurriculumChangeRef.current = false;
-    } else {
+    } else if (!(isInitialLoad && value)) {
       setSelections([]);
       onChange?.('');
     }
