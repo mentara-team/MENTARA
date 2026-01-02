@@ -89,7 +89,7 @@ const ExamManagerNew = () => {
   const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
     return new Promise((resolve) => {
       const id = toast((t) => (
-        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[min(92vw,420px)]">
+        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[92vw] max-w-[420px]">
           <div className="text-sm font-semibold text-text">{message}</div>
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
@@ -114,7 +114,7 @@ const ExamManagerNew = () => {
             </button>
           </div>
         </div>
-      ), { duration: Infinity });
+      ), { duration: Infinity, position: 'top-center' });
 
       // Safety: if toast is dismissed externally, treat as cancel.
       if (id == null) return;
@@ -315,6 +315,11 @@ const ExamManagerNew = () => {
       fetchData();
     } catch (error) {
       console.error('Failed to delete exam:', error);
+      if (error?.response?.status === 404) {
+        toast('This exam was already deleted in another tab.', { icon: 'ℹ️' });
+        fetchData();
+        return;
+      }
       toast.error('Failed to delete exam');
     }
   };
@@ -418,6 +423,12 @@ const ExamManagerNew = () => {
       fetchData();
     } catch (error) {
       console.error('Failed to remove question from exam:', error);
+      if (error?.response?.status === 404) {
+        toast('Already removed in another tab.', { icon: 'ℹ️' });
+        await loadExamQuestions(selectedExam.id);
+        fetchData();
+        return;
+      }
       toast.error('Failed to remove question from exam');
     }
   };

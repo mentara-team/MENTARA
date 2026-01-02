@@ -13,7 +13,7 @@ const UserManager = () => {
   const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
     return new Promise((resolve) => {
       toast((t) => (
-        <div className="bg-[#1A1B23] border border-white/10 rounded-2xl p-4 shadow-2xl w-[min(92vw,520px)]">
+        <div className="bg-[#1A1B23] border border-white/10 rounded-2xl p-4 shadow-2xl w-[92vw] max-w-[520px]">
           <div className="text-sm font-semibold text-white whitespace-pre-line">{message}</div>
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
@@ -38,7 +38,7 @@ const UserManager = () => {
             </button>
           </div>
         </div>
-      ), { duration: Infinity });
+      ), { duration: Infinity, position: 'top-center' });
     });
   };
 
@@ -69,6 +69,11 @@ const UserManager = () => {
       fetchUsers();
     } catch (error) {
       console.error('Failed to delete user:', error);
+      if (error?.response?.status === 404) {
+        toast('This user was already deleted in another tab.', { icon: 'ℹ️' });
+        fetchUsers();
+        return;
+      }
       toast.error('Failed to delete user');
     }
   };

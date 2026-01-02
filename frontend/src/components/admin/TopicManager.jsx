@@ -121,7 +121,7 @@ const TopicManager = () => {
   const confirmToast = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) => {
     return new Promise((resolve) => {
       toast((t) => (
-        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[min(92vw,520px)]">
+        <div className="bg-surface border border-elevated/50 rounded-2xl p-4 shadow-lg w-[92vw] max-w-[520px]">
           <div className="text-sm font-semibold text-text whitespace-pre-line">{message}</div>
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
@@ -146,7 +146,7 @@ const TopicManager = () => {
             </button>
           </div>
         </div>
-      ), { duration: Infinity });
+      ), { duration: Infinity, position: 'top-center' });
     });
   };
 
@@ -162,6 +162,11 @@ const TopicManager = () => {
       fetchTopics();
     } catch (error) {
       console.error('Failed to delete topic:', error);
+      if (error?.response?.status === 404) {
+        toast('This topic was already deleted in another tab.', { icon: 'ℹ️' });
+        fetchTopics();
+        return;
+      }
       toast.error(
         error.response?.data?.detail ||
           error.response?.data?.error ||

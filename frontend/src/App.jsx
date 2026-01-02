@@ -1,7 +1,7 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { BackToTopButton, ScrollToTopOnRouteChange } from './components/ScrollToTop';
 
 // Pages
@@ -61,11 +61,23 @@ const ProtectedRoute = ({ children, requireAuth = true, requireRole = null }) =>
 };
 
 function App() {
+  const location = useLocation();
+
+  // Prevent stale confirmations/notifications from lingering across panels.
+  useEffect(() => {
+    toast.dismiss();
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen bg-mentara-dark">
       <ScrollToTopOnRouteChange />
       <Toaster
-        position="top-right"
+        position="top-center"
+        containerStyle={{
+          top: 16,
+          left: 16,
+          right: 16,
+        }}
         toastOptions={{
           duration: 3000,
           style: {
@@ -73,7 +85,9 @@ function App() {
             color: '#fff',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '12px',
-            padding: '16px'
+            padding: '16px',
+            width: '100%',
+            maxWidth: '520px',
           },
           success: {
             iconTheme: {
