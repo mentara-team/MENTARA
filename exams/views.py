@@ -257,6 +257,64 @@ class ExamViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrTeacher])
+    def duplicate(self, request, pk=None):
+        """Duplicate an exam (and its attached questions) server-side.
+
+        This avoids client-side mismatches and ensures the new exam preserves question order.
+        """
+        src: Exam = self.get_object()
+
+        # Optional overrides
+        title = (request.data.get('title') or '').strip() or f"{src.title} (Copy)"
+        visibility = (request.data.get('visibility') or '').strip() or 'PRIVATE'
+
+        # Only keep passing_marks for STRUCT exams (either explicitly set or inferred from questions)
+        src_is_struct = bool(
+            (getattr(src, 'answer_type', '') or '').upper() == 'STRUCT'
+            or src.exam_questions.filter(question__type='STRUCT').exists()
+        )
+
+        with transaction.atomic():
+            new_exam = Exam.objects.create(
+                title=title,
+                description=src.description or '',
+                topic=src.topic,
+                answer_type=getattr(src, 'answer_type', '') or '',
+                level=getattr(src, 'level', '') or '',
+                paper_number=getattr(src, 'paper_number', None),
+                duration_seconds=int(getattr(src, 'duration_seconds', 0) or 0),
+                total_marks=float(getattr(src, 'total_marks', 0) or 0),
+                passing_marks=(float(getattr(src, 'passing_marks', 0) or 0) if src_is_struct else None),
+                shuffle_questions=bool(getattr(src, 'shuffle_questions', True)),
+                visibility=visibility,
+                instructions=getattr(src, 'instructions', '') or '',
+                created_by=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                is_active=True,
+            )
+
+            # Preserve attached questions and their order.
+            src_links = (
+                ExamQuestion.objects
+                .filter(exam=src)
+                .order_by('order', 'id')
+            )
+            to_create = []
+            for link in src_links:
+                to_create.append(
+                    ExamQuestion(
+                        exam=new_exam,
+                        question=link.question,
+                        order=link.order or 0,
+                        marks_override=link.marks_override,
+                    )
+                )
+            if to_create:
+                ExamQuestion.objects.bulk_create(to_create)
+
+        ser = self.get_serializer(new_exam)
+        return DRFResponse(ser.data, status=status.HTTP_201_CREATED)
+
 
 class CurriculumViewSet(viewsets.ModelViewSet):
     queryset = Curriculum.objects.all()

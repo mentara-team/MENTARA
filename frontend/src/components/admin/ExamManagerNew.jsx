@@ -345,52 +345,22 @@ const ExamManagerNew = () => {
 
   const handleDuplicate = async (exam) => {
     try {
-      const isStructExam =
-        String(exam?.answer_type || '').toUpperCase() === 'STRUCT' || Boolean(exam?.has_struct_questions);
-      const duplicateData = {
+      const res = await api.post(`exams/${exam.id}/duplicate/`, {
         title: `${exam.title} (Copy)`,
-        description: exam.description || '',
-        topic: exam.topic,
-        level: exam.level || null,
-        paper_number: exam.paper_number ?? null,
-        duration_seconds:
-          exam.duration_seconds != null
-            ? exam.duration_seconds
-            : Math.round(Number(exam.duration_minutes || 60) * 60),
-        total_marks: exam.total_marks,
-        passing_marks: isStructExam ? exam.passing_marks : null,
-        answer_type: exam.answer_type || '',
-        instructions: exam.instructions || '',
         visibility: 'PRIVATE',
-        is_active: true,
-        shuffle_questions: true,
-      };
-      const res = await api.post('exams/', duplicateData);
+      });
       const newExamId = res?.data?.id;
-
-      // Copy attached questions (and their order) if possible.
-      if (newExamId && exam?.id) {
-        try {
-          const qRes = await api.get(`exams/${exam.id}/questions/`);
-          const items = Array.isArray(qRes?.data?.questions) ? qRes.data.questions : [];
-          const orderedQuestionIds = items
-            .map((it) => it?.question_id)
-            .filter((qid) => qid != null);
-
-          if (orderedQuestionIds.length) {
-            await api.post(`exams/${newExamId}/add-questions/`, { question_ids: orderedQuestionIds });
-            await api.post(`exams/${newExamId}/questions/reorder/`, { ordered_question_ids: orderedQuestionIds });
-          }
-        } catch (err) {
-          // Non-fatal: exam is duplicated; questions can be added manually.
-          console.warn('Duplicate created but failed to copy questions:', err);
-        }
-      }
 
       toast.success('✨ Exam duplicated successfully!');
       fetchData();
+      if (newExamId) {
+        // Optionally load questions preview if the user is already previewing this exam.
+        // No navigation change; keeps UX minimal.
+      }
     } catch (error) {
-      toast.error('Failed to duplicate exam');
+      const data = error?.response?.data;
+      const detail = data?.detail || (data ? JSON.stringify(data) : null);
+      toast.error(detail || 'Failed to duplicate exam');
     }
   };
 
@@ -499,12 +469,12 @@ const ExamManagerNew = () => {
     setFormData({
       title: exam.title,
       description: exam.description || '',
-      topic: exam.topic || '',
+      topic: exam?.topic != null && exam.topic !== '' ? String(exam.topic) : '',
       level: exam.level || '',
       paper_number: exam.paper_number ?? '',
-      duration_minutes: exam.duration_minutes,
-      total_marks: exam.total_marks,
-      passing_marks: exam.passing_marks,
+      duration_minutes: exam?.duration_minutes ?? 60,
+      total_marks: exam?.total_marks ?? '',
+      passing_marks: exam?.passing_marks ?? '',
       answer_type: exam.answer_type || '',
       status: exam.status,
       scheduled_date: exam.scheduled_date || '',
