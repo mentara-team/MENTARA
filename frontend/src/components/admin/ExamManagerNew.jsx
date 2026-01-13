@@ -1183,11 +1183,12 @@ const ExamManagerNew = () => {
             <motion.button
               key={question.id}
               type="button"
-              whileHover={{ scale: 1.01 }}
-              className={`w-full text-left p-4 rounded-lg border cursor-pointer transition-all ${
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.99 }}
+              className={`premium-card w-full text-left rounded-lg p-4 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-purple-500/30 focus-visible:ring-offset-0 ${
                 selectedQuestions.includes(question.id)
-                  ? 'bg-purple-500/20 border-purple-500/50'
-                  : 'bg-white/5 border-white/10 hover:border-white/20'
+                  ? 'bg-purple-500/10 border-purple-500/40'
+                  : 'bg-white/5 border-white/10'
               }`}
               onClick={() => toggleQuestionSelection(question.id)}
             >

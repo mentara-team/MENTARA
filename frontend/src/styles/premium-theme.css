@@ -77,9 +77,22 @@
   border: 1px solid var(--dark-border);
   border-radius: var(--radius-xl);
   padding: var(--space-lg);
-  transition: all var(--transition-base);
+  /* Containment + stacking context so glows never bleed outside */
   position: relative;
+  isolation: isolate;
   overflow: hidden;
+
+  /* Prevent hover jank / layout shift */
+  box-sizing: border-box;
+
+  /* GPU-friendly hover animation */
+  transform: translateZ(0);
+  will-change: transform, box-shadow;
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base),
+    border-color var(--transition-base),
+    background-color var(--transition-base);
 }
 
 .premium-card::before {
@@ -92,16 +105,78 @@
   background: var(--gradient-primary);
   opacity: 0;
   transition: opacity var(--transition-base);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Inner glow + subtle dots, clipped by overflow:hidden */
+.premium-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transform: translateZ(0);
+  will-change: opacity;
+  transition: opacity var(--transition-base);
+
+  /* Layered effects:
+     1) soft radial glow
+     2) subtle noise/dots pattern
+  */
+  background:
+    radial-gradient(600px circle at var(--mx, 50%) var(--my, 50%), rgba(99, 102, 241, 0.18), transparent 45%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.10) 1px, transparent 0);
+  background-size: auto, 18px 18px;
+  background-position: center, 0 0;
+  mix-blend-mode: screen;
 }
 
 .premium-card:hover {
   border-color: var(--dark-border-hover);
-  transform: translateY(-2px);
+  /* transform-only — no width/height/border changes that shift layout */
+  transform: translate3d(0, -2px, 0);
   box-shadow: var(--shadow-lg);
 }
 
 .premium-card:hover::before {
   opacity: 1;
+}
+
+.premium-card:hover::after {
+  opacity: 1;
+}
+
+/* Keyboard accessibility: mirror hover on focus */
+.premium-card:focus-within {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.35), var(--shadow-lg);
+}
+
+/* If the card itself is focusable (button/link), style focus directly */
+.premium-card:focus-visible {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25), var(--shadow-lg);
+}
+
+.premium-card:focus-within::before,
+.premium-card:focus-within::after {
+  opacity: 1;
+}
+
+/* Reduce motion: keep premium visuals, but remove movement */
+@media (prefers-reduced-motion: reduce) {
+  .premium-card {
+    transition: border-color var(--transition-base), box-shadow var(--transition-base), background-color var(--transition-base);
+    transform: none;
+  }
+
+  .premium-card:hover {
+    transform: none;
+  }
 }
 
 /* Premium Buttons */
