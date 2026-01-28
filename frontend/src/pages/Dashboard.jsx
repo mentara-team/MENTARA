@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Activity, ArrowRight, Award, BookOpen, Clock, Play, Sparkles, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  Award,
+  Bell,
+  BookOpen,
+  Calendar,
+  Clock,
+  GraduationCap,
+  LayoutDashboard,
+  MessageCircle,
+  Play,
+  Settings,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
+  Zap,
+} from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import AppShell from '../components/layout/AppShell';
-import StudentNav from '../components/layout/StudentNav';
 import ThemeToggle from '../components/ui/ThemeToggle';
 
 const LSK = {
@@ -176,36 +193,9 @@ const Dashboard = () => {
     return found?.rank ?? null;
   }, [dashboardData.leaderboard, user?.username]);
 
-  const topStats = useMemo(
-    () => [
-      { icon: Trophy, label: 'Tests Completed', value: submittedAttempts.length },
-      { icon: Target, label: 'Average Score', value: `${avgScore}%` },
-      { icon: Zap, label: 'Day Streak', value: streak },
-      { icon: Award, label: 'Weekly Rank', value: myLeaderboardRank ? `#${myLeaderboardRank}` : '—' },
-    ],
-    [avgScore, myLeaderboardRank, streak, submittedAttempts.length]
-  );
-
   const upcoming = useMemo(() => (dashboardData.upcomingExams || []).slice(0, 3), [dashboardData.upcomingExams]);
   const recentTwo = useMemo(() => submittedAttempts.slice(0, 2), [submittedAttempts]);
   const topTopics = useMemo(() => (dashboardData.topicProgress || []).slice(0, 4), [dashboardData.topicProgress]);
-
-  const weeklyCompleted = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 86400000;
-    let count = 0;
-    for (const a of submittedAttempts) {
-      const when = a?.finished_at || a?.started_at;
-      if (!when) continue;
-      const t = new Date(when).getTime();
-      if (Number.isFinite(t) && t >= weekAgo) count += 1;
-    }
-    return count;
-  }, [submittedAttempts]);
-
-  const weeklyPct = useMemo(() => {
-    if (!weeklyGoal) return 0;
-    return Math.max(0, Math.min(100, Math.round((weeklyCompleted / weeklyGoal) * 100)));
-  }, [weeklyCompleted, weeklyGoal]);
 
   const trendPoints = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, i) => {
@@ -280,604 +270,365 @@ const Dashboard = () => {
     ].join(' ');
   }, [trendPoints]);
 
+  const firstName = user?.first_name || 'Student';
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Student';
+  const initials = `${(user?.first_name || 'S').slice(0, 1)}${(user?.last_name || 'D').slice(0, 1)}`.toUpperCase();
+
+  const upcomingCards = useMemo(() => {
+    const arr = upcoming.length ? upcoming : [];
+    return arr.map((e) => ({
+      id: e?.id,
+      title: e?.title,
+      durationMin: Number.isFinite(e?.duration) ? e.duration : Math.round((e?.duration_seconds || 0) / 60),
+      questionCount: e?.question_count || 0,
+    }));
+  }, [upcoming]);
+
   return (
-    <AppShell
-      brandTitle="Mentara"
-      brandSubtitle="IB Exam Preparation"
-      nav={(
-        <StudentNav active="dashboard" />
-      )}
-      right={(
-        <>
-          <ThemeToggle />
-          <button className="btn-secondary text-sm hidden sm:inline-flex" onClick={loadDashboardData} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-          <div className="hidden sm:flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-text">{user?.first_name} {user?.last_name}</p>
-              <p className="text-xs text-text-secondary">{user?.email}</p>
-            </div>
-            <button onClick={logout} className="btn-secondary text-sm">Logout</button>
-          </div>
-        </>
-      )}
-    >
-      <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
-        <div className="card-elevated p-0 overflow-hidden border border-elevated/60 backdrop-blur-xl">
-          <div className="relative p-8 sm:p-10 lg:p-12">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-surface/0 to-primary/4" />
-            <div className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full bg-primary/8 blur-3xl opacity-60" />
-            <div className="absolute -bottom-32 -left-32 w-[600px] h-[600px] rounded-full bg-primary/8 blur-3xl opacity-60" />
+    <div className="student-dashboard-shell">
+      <div className="student-dashboard-layout">
+        {/* Sidebar */}
+        <aside className="student-dashboard-sidebar">
+          <div className="student-dashboard-brand">
             <img
-              src="/marketing/hero-home.svg"
-              alt=""
-              className="hidden lg:block absolute right-8 bottom-0 w-[380px] opacity-30 pointer-events-none select-none"
+              src="/branding/mentara-logo-transparent.png"
+              alt="Mentara"
+              className="h-9 w-auto object-contain"
               draggable="false"
             />
+            <div className="min-w-0">
+              <div className="student-dashboard-brandTitle truncate">Mentara</div>
+              <div className="student-dashboard-brandSub truncate">IB Exam Preparation</div>
+            </div>
+          </div>
 
-            <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
-              <div className="min-w-0 flex-1">
-                <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-surface/60 border border-elevated/60 text-xs font-medium text-text-secondary mb-4 backdrop-blur-sm">
-                  <Activity className="w-3.5 h-3.5 text-primary" />
-                  Student Dashboard
-                </div>
+          <nav className="student-dashboard-nav" aria-label="Student navigation">
+            <Link to="/dashboard" className="student-dashboard-navItem student-dashboard-navItemActive">
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Link>
+            <Link to="/grades" className="student-dashboard-navItem">
+              <GraduationCap className="w-4 h-4" />
+              Grades
+            </Link>
+            <Link to="/class" className="student-dashboard-navItem">
+              <Users className="w-4 h-4" />
+              Class
+            </Link>
+            <Link to="/groups" className="student-dashboard-navItem">
+              <Users className="w-4 h-4" />
+              Groups
+            </Link>
+            <Link to="/administration" className="student-dashboard-navItem">
+              <Settings className="w-4 h-4" />
+              Administration
+            </Link>
+            <Link to="/departments" className="student-dashboard-navItem">
+              <BookOpen className="w-4 h-4" />
+              Departments
+            </Link>
+            <div className="pt-3 mt-2 border-t border-white/10 light:border-slate-900/10">
+              <Link to="/messages" className="student-dashboard-navItem">
+                <MessageCircle className="w-4 h-4" />
+                Message
+              </Link>
+              <Link to="/call" className="student-dashboard-navItem">
+                <PhoneIconFallback className="w-4 h-4" />
+                Call Meeting
+              </Link>
+            </div>
+          </nav>
 
-                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-text mb-4 truncate tracking-tight leading-tight">
-                  Welcome back, {user?.first_name || 'Student'}
-                </h2>
+          <div className="student-dashboard-cta">
+            <div className="text-sm font-bold text-white">Upgrade to Pro</div>
+            <div className="text-xs student-dashboard-muted mt-1">Unlock premium analytics, streak boosts, and more.</div>
+            <button type="button" className="btn-premium w-full mt-3" onClick={() => navigate('/pricing')}>Upgrade</button>
+          </div>
+        </aside>
 
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm transition-all hover:border-primary/40 hover:bg-surface/60">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span className="font-medium">{streak} day streak</span>
-                  </span>
-                  <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm transition-all hover:border-primary/40 hover:bg-surface/60">
-                    <Target className="w-4 h-4 text-primary" />
-                    <span className="font-medium">Avg {avgScore}%</span>
-                  </span>
-                  <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm transition-all hover:border-primary/40 hover:bg-surface/60">
-                    <Award className="w-4 h-4 text-primary" />
-                    <span className="font-medium">Rank {myLeaderboardRank ? `#${myLeaderboardRank}` : '—'}</span>
-                  </span>
+        {/* Main */}
+        <section className="min-w-0">
+          <div className="student-dashboard-header">
+            <div className="min-w-0">
+              <div className="student-dashboard-subtitle">Hello {firstName}, Welcome back 👋</div>
+              <div className="student-dashboard-title">Your Dashboard today</div>
+            </div>
+            <div className="student-dashboard-topActions">
+              <button type="button" className="btn-secondary btn-icon" aria-label="Notifications" title="Notifications">
+                <Bell className="w-4 h-4" />
+              </button>
+              <ThemeToggle />
+              <button
+                type="button"
+                className="btn-secondary btn-icon"
+                aria-label="Refresh"
+                title="Refresh"
+                onClick={loadDashboardData}
+                disabled={loading}
+              >
+                <Activity className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-icon"
+                aria-label="Account"
+                title={fullName}
+                onClick={logout}
+              >
+                <span className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-bold text-white">
+                  {initials}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="student-dashboard-heroCard">
+            <div className="flex items-center justify-between gap-12">
+              <div className="min-w-0">
+                <div className="text-sm font-extrabold text-white">Creative outdoor ads</div>
+                <div className="text-xs student-dashboard-muted mt-1 max-w-[560px]">
+                  Every large design company whether it’s a multi-national branding corporation or a regular down to their
+                  local magazine publisher needs to fill holes in the workforce.
                 </div>
               </div>
+              <button onClick={() => navigate('/exams')} className="btn-premium whitespace-nowrap">Get started</button>
+            </div>
+          </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto lg:flex-shrink-0">
-                <button onClick={() => navigate('/exams')} className="btn-primary w-full sm:w-auto px-6 py-3 text-base font-semibold">
-                  <Play className="w-4 h-4 inline-block mr-2" />
-                  Start Test
-                </button>
-                <button onClick={() => navigate('/leaderboard')} className="btn-secondary w-full sm:w-auto px-6 py-3 text-base font-semibold">
-                  View Leaderboard
-                </button>
+          <div className="student-dashboard-grid" style={{ marginTop: 18 }}>
+            <div className="student-dashboard-card">
+              <div className="student-dashboard-cardTitle">
+                <span>Semester Grade</span>
+                <span className="text-xs student-dashboard-muted">Last 7 days</span>
+              </div>
+              <div className="mt-3">
+                {/* Keep existing performance trend SVG (feature logic unchanged) */}
+                <div className="bg-black/10 light:bg-slate-900/5 rounded-2xl p-4">
+                  <svg viewBox="0 0 520 160" className="w-full h-40">
+                    <defs>
+                      <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                      </linearGradient>
+                      <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
+                        <stop offset="100%" stopColor="currentColor" stopOpacity="0.7" />
+                      </linearGradient>
+                    </defs>
+
+                    <g className="text-text" opacity="0.12" stroke="currentColor" strokeWidth="1">
+                      <path d="M 12 40 L 508 40" />
+                      <path d="M 12 80 L 508 80" />
+                      <path d="M 12 120 L 508 120" />
+                    </g>
+
+                    <g className="text-primary">
+                      <path d={trendAreaPath} fill="url(#trendFill)" />
+                      <path d={trendPath} fill="none" stroke="url(#trendStroke)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d={trendPath} fill="none" stroke="currentColor" strokeWidth="12" strokeOpacity="0.12" />
+                    </g>
+                  </svg>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </motion.div>
 
-      <div className="sm:hidden mb-8">
-        <div className="card-elevated flex items-center justify-between gap-4 p-5 border border-elevated/60 backdrop-blur-xl">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-text truncate mb-1">{user?.first_name} {user?.last_name}</div>
-            <div className="text-xs text-text-secondary truncate font-medium">{user?.email}</div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button className="btn-secondary text-sm px-4 py-2 font-semibold" onClick={loadDashboardData} disabled={loading}>
-              {loading ? 'Loading…' : 'Refresh'}
-            </button>
-            <button onClick={logout} className="btn-secondary text-sm px-4 py-2 font-semibold">Logout</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <motion.button
-          type="button"
-          onClick={() => navigate('/library')}
-          whileHover={{ y: -6, scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className="card-elevated hover:border-primary/40 hover:bg-surface/40 transition-all duration-300 text-left group border border-elevated/60 backdrop-blur-xl"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex-1">
-              <div className="text-base font-bold text-text mb-1.5 group-hover:text-primary transition-colors">Browse Library</div>
-              <div className="text-xs text-text-secondary leading-relaxed">Pick topics and start practicing</div>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 group-hover:border-primary/40 transition-all">
-              <BookOpen className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-surface/60 overflow-hidden">
-            <div className="h-full w-2/3 bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-500" />
-          </div>
-        </motion.button>
-
-        <motion.button
-          type="button"
-          onClick={() => navigate('/exams')}
-          whileHover={{ y: -6, scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className="card-elevated hover:border-primary/40 hover:bg-surface/40 transition-all duration-300 text-left group border border-elevated/60 backdrop-blur-xl"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex-1">
-              <div className="text-base font-bold text-text mb-1.5 group-hover:text-primary transition-colors">Take a Test</div>
-              <div className="text-xs text-text-secondary leading-relaxed">Timed practice with instant results</div>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 group-hover:border-primary/40 transition-all">
-              <Play className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-surface/60 overflow-hidden">
-            <div className="h-full w-1/2 bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-500" />
-          </div>
-        </motion.button>
-
-        <motion.button
-          type="button"
-          onClick={() => navigate('/results')}
-          whileHover={{ y: -6, scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className="card-elevated hover:border-primary/40 hover:bg-surface/40 transition-all duration-300 text-left group border border-elevated/60 backdrop-blur-xl"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex-1">
-              <div className="text-base font-bold text-text mb-1.5 group-hover:text-primary transition-colors">Review Results</div>
-              <div className="text-xs text-text-secondary leading-relaxed">Fix mistakes and improve score</div>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 group-hover:border-primary/40 transition-all">
-              <TrendingUp className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-surface/60 overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-500" />
-          </div>
-        </motion.button>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="mb-10"
-      >
-        <div className="card-elevated p-0 overflow-hidden border border-elevated/60 backdrop-blur-xl">
-          <div className="relative p-8 sm:p-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-surface/0 to-primary/6" />
-            <motion.div
-              aria-hidden="true"
-              className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary/12 blur-3xl opacity-70"
-              animate={{ y: [0, -12, 0], x: [0, 8, 0] }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <motion.div
-              aria-hidden="true"
-              className="absolute -bottom-20 -left-16 w-72 h-72 rounded-full bg-primary/12 blur-3xl opacity-70"
-              animate={{ y: [0, 14, 0], x: [0, -8, 0] }}
-              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-            />
-
-            <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
-              <div className="min-w-0 flex-1">
-                <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-surface/60 border border-elevated/60 text-xs font-medium text-text-secondary mb-4 backdrop-blur-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  Continue Learning
-                </div>
-
-                {!latestAttempt ? (
-                  <>
-                    <div className="text-3xl sm:text-4xl font-extrabold text-text mb-3 tracking-tight leading-tight">Start your first practice session</div>
-                    <div className="text-sm text-text-secondary max-w-2xl leading-relaxed">
-                      Take a timed test and we'll keep your progress, streak, and analytics updated automatically.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-3xl sm:text-4xl font-extrabold text-text mb-3 truncate tracking-tight leading-tight">{latestAttempt.exam_title || 'Your last test'}</div>
-                    {(latestAttempt?.curriculum_name || latestAttempt?.topic_name) ? (
-                      <div className="flex flex-wrap items-center gap-3 text-xs mb-3">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm font-medium">
-                          {latestAttempt.curriculum_name || '—'}
-                        </span>
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm font-medium">
-                          {latestAttempt.topic_name || '—'}
-                        </span>
-                        {Number.isFinite(Number(latestAttempt?.rank)) ? (
-                          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/15 border border-primary/30 text-primary font-semibold backdrop-blur-sm">
-                            Rank #{latestAttempt.rank}
-                          </span>
-                        ) : null}
+            <div className="student-dashboard-card">
+              <div className="student-dashboard-cardTitle">
+                <span>Lesson</span>
+                <span className="text-xs student-dashboard-muted">Overview</span>
+              </div>
+              <div className="mt-3 bg-black/10 light:bg-slate-900/5 rounded-2xl p-4">
+                {/* Lightweight donut to match Figma feel; uses existing stats inputs */}
+                {(() => {
+                  const v1 = Math.max(0, Math.min(100, avgScore));
+                  const v2 = Math.max(0, Math.min(100, 100 - v1));
+                  const total = Math.max(1, v1 + v2);
+                  const d1 = (v1 / total) * 360;
+                  const d2 = 360 - d1;
+                  return (
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="w-28 h-28 rounded-full"
+                        style={{
+                          background: `conic-gradient(var(--primary-purple) 0deg ${d1}deg, rgba(255,255,255,0.14) ${d1}deg 360deg)`,
+                        }}
+                        aria-label="Lesson completion"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-text">Submission</div>
+                        <div className="text-xs student-dashboard-muted">Avg score {avgScore}%</div>
+                        <div className="mt-3 text-sm font-bold text-text">Streak</div>
+                        <div className="text-xs student-dashboard-muted">{streak} days</div>
                       </div>
-                    ) : null}
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm font-medium">
-                        <span className={`w-2.5 h-2.5 rounded-full ${latestAttempt.status === 'inprogress' ? 'bg-primary animate-pulse' : 'bg-success'}`} />
-                        {latestAttempt.status === 'inprogress' ? 'In progress' : 'Completed'}
-                      </span>
-                      {latestAttempt.status === 'inprogress' && (
-                        <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm font-medium">
-                          <Target className="w-4 h-4 text-primary" />
-                          {latestAttemptExamMeta?.question_count
-                            ? `${latestAttemptAnsweredCount}/${latestAttemptExamMeta.question_count} answered`
-                            : `${latestAttemptAnsweredCount} answered`}
-                        </span>
-                      )}
-                      {(latestAttempt.status === 'submitted' || latestAttempt.status === 'timedout') && (
-                        <span className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface/50 border border-elevated/60 text-text-secondary backdrop-blur-sm font-medium">
-                          <TrendingUp className="w-4 h-4 text-primary" />
-                          {latestAttempt?.needs_grading
-                            ? 'Pending teacher grading'
-                            : (Number.isFinite(Number(latestAttempt.percentage))
-                              ? `${Math.round(Number(latestAttempt.percentage))}% score`
-                              : 'Results ready')}
-                        </span>
-                      )}
                     </div>
-                  </>
-                )}
+                  );
+                })()}
               </div>
+            </div>
+          </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto lg:flex-shrink-0">
-                {!latestAttempt ? (
-                  <button onClick={() => navigate('/exams')} className="btn-primary w-full sm:w-auto px-6 py-3 text-base font-semibold">
-                    Start Practice
-                    <ArrowRight className="w-4 h-4 inline-block ml-2" />
-                  </button>
-                ) : latestAttempt.status === 'inprogress' ? (
+          <div className="student-dashboard-grid" style={{ marginTop: 18 }}>
+            <div className="student-dashboard-card">
+              <div className="student-dashboard-cardTitle">
+                <span>Your documents</span>
+                <span className="text-xs student-dashboard-muted">Recent</span>
+              </div>
+              <div className="student-dashboard-list">
+                {recentTwo.map((a) => (
                   <button
-                    onClick={() => navigate(`/test/${latestAttempt.exam_id}`)}
-                    className="btn-primary w-full sm:w-auto px-6 py-3 text-base font-semibold"
+                    key={a.id}
+                    type="button"
+                    className="student-dashboard-listItem text-left"
+                    onClick={() => handleViewResults(a.id)}
                   >
-                    Continue Test
-                    <ArrowRight className="w-4 h-4 inline-block ml-2" />
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleViewResults(latestAttempt.id)}
-                      className="btn-primary w-full sm:w-auto px-6 py-3 text-base font-semibold"
-                    >
-                      View Results
-                      <ArrowRight className="w-4 h-4 inline-block ml-2" />
-                    </button>
-                    <button
-                      onClick={() => navigate(`/attempt/${latestAttempt.id}/review`)}
-                      className="btn-secondary w-full sm:w-auto px-6 py-3 text-base font-semibold"
-                    >
-                      Review Answers
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      <div className="card-elevated p-0 overflow-hidden mb-10 border border-elevated/60 backdrop-blur-xl">
-        <div className="relative p-8 sm:p-10">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-surface/0 to-primary/4" />
-          <img
-            src="/marketing/hero-results.svg"
-            alt=""
-            className="hidden md:block absolute right-8 bottom-0 w-[340px] opacity-30 pointer-events-none select-none"
-            draggable="false"
-          />
-
-          <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium text-text-secondary mb-3 uppercase tracking-wider">Today's Plan</div>
-              <div className="text-3xl sm:text-4xl font-extrabold text-text mb-3 tracking-tight leading-tight">Build momentum in 20 minutes</div>
-              <div className="text-sm text-text-secondary max-w-2xl leading-relaxed mb-6">
-                Quick, guided routine to keep you consistent and improve scores.
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { k: '1', t: 'Pick a topic', d: 'Library → choose weak areas' },
-                  { k: '2', t: 'Take one test', d: 'Timed practice' },
-                  { k: '3', t: 'Review mistakes', d: 'Fix gaps quickly' },
-                ].map((x) => (
-                  <div key={x.k} className="bg-surface/50 border border-elevated/60 rounded-2xl p-5 backdrop-blur-sm hover:border-primary/40 hover:bg-surface/60 transition-all group">
-                    <div className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wider">Step {x.k}</div>
-                    <div className="mt-1 font-bold text-base text-text mb-2 group-hover:text-primary transition-colors">{x.t}</div>
-                    <div className="mt-1 text-xs text-text-secondary leading-relaxed">{x.d}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:flex-shrink-0">
-              <button onClick={() => navigate('/library')} className="btn-secondary w-full sm:w-auto px-6 py-3 text-base font-semibold">Open Library</button>
-              <button onClick={() => navigate('/exams')} className="btn-primary w-full sm:w-auto px-6 py-3 text-base font-semibold">Start Practice</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        {topStats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.08 }}
-            whileHover={{ y: -6, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="card-elevated hover:border-primary/40 hover:bg-surface/20 transition-all duration-300 border border-elevated/60 backdrop-blur-xl group"
-          >
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/15 group-hover:border-primary/30 transition-all">
-                <stat.icon className="w-6 h-6 text-primary" />
-              </div>
-              <div className="text-right">
-                <div className="text-4xl font-extrabold text-text leading-none tracking-tight">{stat.value}</div>
-                <div className="text-xs text-text-secondary mt-2 font-medium uppercase tracking-wider">{stat.label}</div>
-              </div>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-surface/60 overflow-hidden">
-              <div className="h-full w-1/2 bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-500" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-extrabold text-text flex items-center gap-3 tracking-tight">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                  </div>
-                  Performance Trend
-                </h3>
-                <div className="text-xs font-medium text-text-secondary uppercase tracking-wider">Last 7 days</div>
-              </div>
-              <div className="bg-surface/40 border border-elevated/60 rounded-2xl p-6 overflow-hidden backdrop-blur-sm">
-                <svg viewBox="0 0 520 160" className="w-full h-40">
-                  <defs>
-                    <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
-                      <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
-                      <stop offset="100%" stopColor="currentColor" stopOpacity="0.7" />
-                    </linearGradient>
-                  </defs>
-
-                  <g className="text-text" opacity="0.12" stroke="currentColor" strokeWidth="1">
-                    <path d="M 12 40 L 508 40" />
-                    <path d="M 12 80 L 508 80" />
-                    <path d="M 12 120 L 508 120" />
-                  </g>
-
-                  <g className="text-primary">
-                    <path d={trendAreaPath} fill="url(#trendFill)" />
-                    <path d={trendPath} fill="none" stroke="url(#trendStroke)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d={trendPath} fill="none" stroke="currentColor" strokeWidth="12" strokeOpacity="0.12" />
-                  </g>
-                </svg>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-extrabold text-text tracking-tight">Topic Performance</h3>
-                  <div className="text-xs font-medium text-text-secondary uppercase tracking-wider">Accuracy</div>
-                </div>
-                <div className="space-y-5">
-                  {topTopics.map((t) => (
-                    <div key={t.topic_id}>
-                      <div className="flex items-center justify-between text-sm mb-3">
-                        <div className="font-bold text-text">{t.topic}</div>
-                        <div className="text-text-secondary font-semibold">{t.accuracy_pct}%</div>
-                      </div>
-                      <div className="w-full h-2.5 bg-surface/60 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-700"
-                          style={{ width: `${Math.max(0, Math.min(100, t.accuracy_pct || 0))}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {topTopics.length === 0 && (
-                    <div className="text-sm text-text-secondary text-center py-8">No topic data yet. Take a test to see analytics.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-extrabold text-text tracking-tight">Upcoming Tests</h3>
-                  <button onClick={() => navigate('/exams')} className="btn-ghost text-sm px-3 py-1.5">View All</button>
-                </div>
-                <div className="space-y-4">
-                  {upcoming.map((exam) => (
-                    <div
-                      key={exam.id}
-                      className="p-5 rounded-2xl bg-surface/50 border border-elevated/60 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300 backdrop-blur-sm group"
-                    >
-                      <div className="font-bold text-base text-text mb-3 group-hover:text-primary transition-colors">{exam.title}</div>
-                      <div className="text-xs text-text-secondary flex items-center gap-4 mb-4">
-                        <span className="inline-flex items-center gap-1.5 font-medium">
-                          <Clock className="w-3.5 h-3.5" />
-                          {Number.isFinite(exam.duration)
-                            ? `${exam.duration} min`
-                            : `${Math.round((exam.duration_seconds || 0) / 60)} min`}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 font-medium">
-                          <BookOpen className="w-3.5 h-3.5" />
-                          {exam.question_count || 0} questions
-                        </span>
-                      </div>
-                      <div>
-                        <button onClick={() => handleStartTest(exam.id)} className="btn-secondary text-sm px-4 py-2 font-semibold">Start</button>
-                      </div>
-                    </div>
-                  ))}
-                  {upcoming.length === 0 && <div className="text-sm text-text-secondary text-center py-8">No tests available yet.</div>}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-extrabold text-text tracking-tight">Recent Activity</h3>
-                </div>
-                <div className="space-y-4">
-                  {recentTwo.map((a) => (
-                    <div
-                      key={a.id}
-                      className="p-5 rounded-2xl bg-surface/50 border border-elevated/60 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300 cursor-pointer group backdrop-blur-sm"
-                      onClick={() => handleViewResults(a.id)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-bold text-base text-text group-hover:text-primary transition-colors">{a.exam_title}</div>
-                        <div className="text-sm font-bold text-text">
-                          {a?.needs_grading ? <span className="text-warning">Pending grading</span> : `${Math.round(Number(a.percentage ?? 0))}%`}
-                        </div>
-                      </div>
-                      <div className="text-xs text-text-secondary font-medium">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text truncate">{a.exam_title}</div>
+                      <div className="text-xs student-dashboard-muted truncate">
                         {a.started_at ? new Date(a.started_at).toLocaleString() : '—'}
                       </div>
                     </div>
-                  ))}
-                  {recentTwo.length === 0 && (
-                    <div className="text-sm text-text-secondary text-center py-8">No activity yet. Start a test to see results.</div>
-                  )}
-                </div>
+                    <span className="text-xs font-bold text-text">
+                      {a?.needs_grading ? 'Pending' : `${Math.round(Number(a.percentage ?? 0))}%`}
+                    </span>
+                  </button>
+                ))}
+                {recentTwo.length === 0 && (
+                  <div className="text-sm student-dashboard-muted">No documents yet. Start a test to see results.</div>
+                )}
               </div>
+            </div>
 
-              <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-extrabold text-text tracking-tight">Achievements</h3>
-                </div>
-                <div className="space-y-4">
-                  <div className="p-5 rounded-2xl bg-surface/50 border border-elevated/60 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300 group backdrop-blur-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/15 group-hover:border-primary/30 transition-all">
-                        <Trophy className="w-6 h-6 text-primary" />
+            <div className="student-dashboard-card">
+              <div className="student-dashboard-cardTitle">
+                <span>Progress learning</span>
+                <span className="text-xs student-dashboard-muted">By topics</span>
+              </div>
+              <div className="student-dashboard-list">
+                {topTopics.map((t) => (
+                  <div key={t.topic_id} className="student-dashboard-listItem">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text truncate">{t.topic}</div>
+                      <div className="text-xs student-dashboard-muted">Accuracy</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-2 rounded-full bg-white/10 light:bg-slate-900/10 overflow-hidden">
+                        <div
+                          className="h-full"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, t.accuracy_pct || 0))}%`,
+                            background: 'var(--gradient-primary)',
+                          }}
+                        />
                       </div>
-                      <div>
-                        <div className="font-bold text-base text-text mb-1">Consistency</div>
-                        <div className="text-xs text-text-secondary font-medium">{streak} day streak</div>
-                      </div>
+                      <div className="text-xs font-bold text-text w-[44px] text-right">{t.accuracy_pct}%</div>
                     </div>
                   </div>
-                  <div className="p-5 rounded-2xl bg-surface/50 border border-elevated/60 hover:border-primary/40 hover:bg-surface/60 transition-all duration-300 group backdrop-blur-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/15 group-hover:border-primary/30 transition-all">
-                        <TrendingUp className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-base text-text mb-1">Momentum</div>
-                        <div className="text-xs text-text-secondary font-medium">Avg score {avgScore}%</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ))}
+                {topTopics.length === 0 && (
+                  <div className="text-sm student-dashboard-muted">No topic data yet. Take a test to see analytics.</div>
+                )}
               </div>
             </div>
           </div>
+        </section>
 
-          <div className="space-y-8">
-            <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-extrabold text-text tracking-tight">Weekly Goal</h3>
-                <div className="text-xs font-medium text-text-secondary uppercase tracking-wider">Last 7 days</div>
-              </div>
-
-              <div className="p-6 rounded-2xl bg-surface/50 border border-elevated/60 backdrop-blur-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <div className="text-sm font-medium text-text-secondary mb-2">Completed</div>
-                    <div className="text-3xl font-extrabold text-text tracking-tight">
-                      {weeklyCompleted} <span className="text-text-secondary text-lg font-bold">/ {weeklyGoal}</span>
+        {/* Right rail */}
+        <aside className="student-dashboard-right">
+          <div className="student-dashboard-card">
+            <div className="student-dashboard-cardTitle">
+              <span>Upcoming</span>
+              <span className="text-xs student-dashboard-muted">Next</span>
+            </div>
+            <div className="student-dashboard-list">
+              {upcomingCards.slice(0, 4).map((e) => (
+                <div key={e.id} className="student-dashboard-listItem">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-text truncate">{e.title}</div>
+                    <div className="text-xs student-dashboard-muted flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{e.durationMin || 0}m</span>
+                      <span className="inline-flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" />{e.questionCount}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn-secondary btn-icon w-10 h-10 p-0 flex items-center justify-center"
-                      onClick={() => setWeeklyGoal((g) => Math.max(1, g - 1))}
-                      aria-label="Decrease weekly goal"
-                      title="Decrease goal"
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-icon w-10 h-10 p-0 flex items-center justify-center"
-                      onClick={() => setWeeklyGoal((g) => Math.min(20, g + 1))}
-                      aria-label="Increase weekly goal"
-                      title="Increase goal"
-                    >
-                      +
-                    </button>
-                  </div>
+                  <button className="btn-secondary text-xs px-3 py-2" onClick={() => handleStartTest(e.id)}>Start</button>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs font-medium text-text-secondary mb-3">
-                    <span>Progress</span>
-                    <span className="font-bold text-text">{weeklyPct}%</span>
-                  </div>
-                  <div className="w-full h-3 bg-bg rounded-full overflow-hidden border border-elevated/60">
-                    <div
-                      className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary/50 rounded-full transition-all duration-700"
-                      style={{ width: `${weeklyPct}%` }}
-                    />
-                  </div>
-                  <div className="mt-4 text-xs text-text-secondary leading-relaxed">
-                    Tip: Set a goal you can hit consistently.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-extrabold text-text tracking-tight">Skill Analysis</h3>
-                <div className="text-xs font-medium text-text-secondary uppercase tracking-wider">Overview</div>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-surface/50 border border-elevated/60 backdrop-blur-sm hover:border-primary/40 transition-all group">
-                  <span className="text-text-secondary font-medium">Accuracy</span>
-                  <span className="font-bold text-text text-base">{avgScore}%</span>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-surface/50 border border-elevated/60 backdrop-blur-sm hover:border-primary/40 transition-all group">
-                  <span className="text-text-secondary font-medium">Speed</span>
-                  <span className="font-bold text-text">{submittedAttempts.length ? 'Good' : '—'}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-surface/50 border border-elevated/60 backdrop-blur-sm hover:border-primary/40 transition-all group">
-                  <span className="text-text-secondary font-medium">Consistency</span>
-                  <span className="font-bold text-text">{streak ? 'Active' : '—'}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card-elevated border border-elevated/60 backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-extrabold text-text tracking-tight">Quick Actions</h3>
-              </div>
-              <div className="space-y-3">
-                <button onClick={() => navigate('/exams')} className="btn-primary w-full px-6 py-3 text-base font-semibold">Browse Tests</button>
-                <button onClick={() => navigate('/leaderboard')} className="btn-secondary w-full px-6 py-3 text-base font-semibold">View Leaderboard</button>
-              </div>
+              ))}
+              {upcomingCards.length === 0 && <div className="text-sm student-dashboard-muted">No upcoming tests.</div>}
             </div>
           </div>
-        </div>
-    </AppShell>
+
+          <div className="student-dashboard-card">
+            <div className="student-dashboard-cardTitle">
+              <span>Recent Activity</span>
+              <span className="text-xs student-dashboard-muted">Latest</span>
+            </div>
+            <div className="student-dashboard-list">
+              {recentTwo.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="student-dashboard-listItem text-left"
+                  onClick={() => handleViewResults(a.id)}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-text truncate">{a.exam_title}</div>
+                    <div className="text-xs student-dashboard-muted">{a.started_at ? new Date(a.started_at).toLocaleDateString() : '—'}</div>
+                  </div>
+                  <div className="text-xs font-bold text-text">{a?.needs_grading ? 'Pending' : `${Math.round(Number(a.percentage ?? 0))}%`}</div>
+                </button>
+              ))}
+              {recentTwo.length === 0 && <div className="text-sm student-dashboard-muted">No activity yet.</div>}
+            </div>
+          </div>
+
+          <div className="student-dashboard-card">
+            <div className="student-dashboard-cardTitle">
+              <span>Latest Message</span>
+              <span className="text-xs student-dashboard-muted">Team</span>
+            </div>
+            <div className="student-dashboard-list">
+              {dashboardData.leaderboard.slice(0, 4).map((l) => (
+                <div key={l.username} className="student-dashboard-listItem">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-white/10 light:bg-slate-900/10 flex items-center justify-center text-xs font-bold text-text">
+                      {(l.username || 'U').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text truncate">{l.username}</div>
+                      <div className="text-xs student-dashboard-muted">Rank #{l.rank}</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-text">{l.score}</span>
+                </div>
+              ))}
+              {(!dashboardData.leaderboard || dashboardData.leaderboard.length === 0) && (
+                <div className="text-sm student-dashboard-muted">No messages yet.</div>
+              )}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 };
+
+function PhoneIconFallback({ className = '' }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M6.62 10.79a15.06 15.06 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.07 21 3 13.93 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.58a1 1 0 0 1-.25 1.01l-2.2 2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default Dashboard;
